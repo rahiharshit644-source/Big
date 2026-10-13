@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Curl Noise Orb</title>
+<!--
+  Curl Noise Orb — self-contained raw WebGL port (no external libraries, works fully offline).
+  Based on the CodePen "Curl Noise Orb" by ko-yelie (MIT). Colour is FIXED (violet -> pink -> blue
+  iridescent gradient chosen to match the Myra pastel-glass theme); it never changes with state.
+  JS API used by the app:
+    window.orbSetLevel(0..1)    voice amplitude, gently speeds up / swells the orb
+    window.orbSetRunning(bool)  pause / resume the render loop (battery)
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; background: transparent; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 uv;
+uniform float time;
+uniform float amp;
+uniform vec2 fit;
+varying vec2 vUv;
+varying float vZ;
+
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+// Simplex noise — Ian McEwan, Ashima Arts (MIT) https://github.com/ashima/webgl-noise
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i);
+  vec4 p = permute(permute(permute(
+            i.z + vec4(0.0, i1.z, i2.z, 1.0))
+          + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+          + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+}
+
+vec3 snoiseVec3(vec3 x) {
+  float s  = snoise(vec3(x));
+  float s1 = snoise(vec3(x.y - 19.1, x.z + 33.4, x.x + 47.2));
+  float s2 = snoise(vec3(x.z + 74.2, x.x - 124.5, x.y + 99.4));
+  return vec3(s, s1, s2);
+}
+
+// https://www.npmjs.com/package/glsl-curl-noise
+vec3 curlNoise(vec3 p) {
+  const float e = 0.1;
+  vec3 dx = vec3(e, 0.0, 0.0);
+  vec3 dy = vec3(0.0, e, 0.0);
+  vec3 dz = vec3(0.0, 0.0, e);
+  vec3 p_x0 = snoiseVec3(p - dx);
+  vec3 p_x1 = snoiseVec3(p + dx);
+  vec3 p_y0 = snoiseVec3(p - dy);
+  vec3 p_y1 = snoiseVec3(p + dy);
+  vec3 p_z0 = snoiseVec3(p - dz);
+  vec3 p_z1 = snoiseVec3(p + dz);
+  float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
+  float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
+  float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+  const float divisor = 1.0 / (2.0 * e);
+  return normalize(vec3(x, y, z) * divisor);
+}
+
+const float density = 0.7;
+
+void main() {
+  vUv = uv;
+  vec3 pos = vec3(uv * 2.0 - 1.0, 0.0) + time;     // `time` already includes the 0.1 speed factor
+  vec3 n = curlNoise(pos * density);
+  vZ = n.z;
+  vec3 p = n * (1.0 + amp * 0.10);
+  float persp = 3.2 / (3.2 - p.z);                  // mild perspective so the sphere reads as 3D
+  gl_Position = vec4(p.xy * persp * 0.60 * fit, 0.0, 1.0);
+}
+</script>
+
+<script id="fs" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform float time2;
+uniform float alphaGain;
+uniform vec3 c0;
+uniform vec3 c1;
+uniform vec3 c2;
+varying vec2 vUv;
+varying float vZ;
+
+const float PI2 = 6.2831853;
+
+void main() {
+  float t = vUv.y;
+  vec3 col = t < 0.5 ? mix(c0, c1, t * 2.0) : mix(c1, c2, (t - 0.5) * 2.0);
+  float a = mix(0.02, 0.55, (sin(vUv.x * PI2 + time2 * 0.5) + 1.0) * 0.5);
+  a *= mix(0.8, 1.0, vZ) * alphaGain;
+  gl_FragColor = vec4(col, a);
+}
+</script>
+
+<script id="quad_vs" type="x-shader/x-vertex">
+attribute vec2 pos;
+varying vec2 vTex;
+void main() { vTex = pos * 0.5 + 0.5; gl_Position = vec4(pos, 0.0, 1.0); }
+</script>
+
+<script id="blur_fs" type="x-shader/x-fragment">
+precision mediump float;
+uniform sampler2D tex;
+uniform vec2 dir;          // texel step * radius
+varying vec2 vTex;
+void main() {
+  vec4 s = texture2D(tex, vTex) * 0.2270270;
+  s += texture2D(tex, vTex + dir * 1.3846154) * 0.3162162;
+  s += texture2D(tex, vTex - dir * 1.3846154) * 0.3162162;
+  s += texture2D(tex, vTex + dir * 3.2307692) * 0.0702703;
+  s += texture2D(tex, vTex - dir * 3.2307692) * 0.0702703;
+  gl_FragColor = s;
+}
+</script>
+
+<script id="comp_fs" type="x-shader/x-fragment">
+precision mediump float;
+uniform sampler2D base;
+uniform sampler2D glow;
+uniform float glowGain;
+varying vec2 vTex;
+void main() {
+  vec4 b = texture2D(base, vTex);
+  vec4 g = texture2D(glow, vTex);
+  gl_FragColor = vec4(b.rgb + g.rgb * glowGain, min(1.0, b.a + g.a * glowGain));   // premultiplied
+}
+</script>
+
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+  function fail(why) {
+    try { console.error('orb failed: ' + why); if (window.OrbBridge && window.OrbBridge.onFailed) window.OrbBridge.onFailed(String(why)); } catch (e) {}
+  }
+  if (!gl) { fail('no webgl'); return; }
+
+  var params = new URLSearchParams(location.search);
+  var GRID = parseInt(params.get('n') || '256', 10);   // points per side (256 => 65k vertices, smooth on phones)
+  var MAX_DPR = 2;
+
+  function src(id) { return document.getElementById(id).textContent; }
+  function compile(type, code) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, code);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { fail('shader: ' + gl.getShaderInfoLog(s)); }
+    return s;
+  }
+  function program(vsId, fsId) {
+    var p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, src(vsId)));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, src(fsId)));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { fail('link: ' + gl.getProgramInfoLog(p)); }
+    return p;
+  }
+
+  var pMain = program('vs', 'fs');
+  var pBlur = program('quad_vs', 'blur_fs');
+  var pComp = program('quad_vs', 'comp_fs');
+
+  // ---- geometry: uv grid drawn as one LINE_STRIP (same as the original) ----
+  var uv = new Float32Array(GRID * GRID * 2);
+  var k = 0, maxI = GRID - 1;
+  for (var j = 0; j < GRID; j++) {
+    for (var i = 0; i < GRID; i++) { uv[k++] = i / maxI; uv[k++] = 1 - j / maxI; }
+  }
+  var uvBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
+
+  var quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+  // ---- render targets ----
+  function makeTarget(w, h) {
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    var fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    return { tex: tex, fb: fb, w: w, h: h };
+  }
+  var tA, tB, tC, W = 0, H = 0;
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    var w = Math.max(2, Math.round(canvas.clientWidth * dpr));
+    var h = Math.max(2, Math.round(canvas.clientHeight * dpr));
+    if (w === W && h === H) return;
+    W = w; H = h; canvas.width = w; canvas.height = h;
+    var bw = Math.max(2, w >> 2), bh = Math.max(2, h >> 2);
+    tA = makeTarget(w, h); tB = makeTarget(bw, bh); tC = makeTarget(bw, bh);
+  }
+
+  function bindQuad(p) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    var loc = gl.getAttribLocation(p, 'pos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // ---- uniforms ----
+  var uMain = {
+    time: gl.getUniformLocation(pMain, 'time'),
+    amp: gl.getUniformLocation(pMain, 'amp'),
+    fit: gl.getUniformLocation(pMain, 'fit'),
+    time2: gl.getUniformLocation(pMain, 'time2'),
+    alphaGain: gl.getUniformLocation(pMain, 'alphaGain'),
+    c0: gl.getUniformLocation(pMain, 'c0'),
+    c1: gl.getUniformLocation(pMain, 'c1'),
+    c2: gl.getUniformLocation(pMain, 'c2')
+  };
+  var uvLoc = gl.getAttribLocation(pMain, 'uv');
+
+  // ---- state ----
+  var level = 0, targetLevel = 0, t = 0, last = 0, running = true, rafId = 0, frames = 0, checked = false;
+
+  // ---- Myra states: colour + brightness + speed + swell ----
+  //   off        grey, nearly still        (Myra is not connected)
+  //   connecting violet, soft pulse
+  //   listening  cyan/blue, calm breathing (Myra hears you; reacts to mic level)
+  //   speaking   pink/violet/orange, fast  (Myra is talking; reacts to speaker level)
+  //   muted      amber, slow
+  //   paused     slate, almost frozen
+  var STATES = {
+    off:        { c: [[0.62,0.64,0.70],[0.72,0.74,0.80],[0.55,0.58,0.66]], alpha: 0.38, speed: 0.22, swell: 0.0, breathe: 0.0 },
+    connecting: { c: [[0.49,0.36,0.95],[0.84,0.36,0.78],[0.31,0.55,0.98]], alpha: 0.80, speed: 0.80, swell: 0.4, breathe: 0.6 },
+    listening:  { c: [[0.10,0.74,0.95],[0.22,0.52,0.98],[0.25,0.85,0.72]], alpha: 0.95, speed: 1.00, swell: 1.0, breathe: 0.5 },
+    speaking:   { c: [[0.98,0.34,0.62],[0.72,0.34,0.96],[1.00,0.58,0.30]], alpha: 1.15, speed: 1.70, swell: 1.8, breathe: 0.3 },
+    muted:      { c: [[0.98,0.66,0.20],[0.95,0.42,0.30],[0.90,0.78,0.38]], alpha: 0.65, speed: 0.50, swell: 0.0, breathe: 0.0 },
+    paused:     { c: [[0.52,0.58,0.74],[0.62,0.66,0.80],[0.46,0.52,0.68]], alpha: 0.45, speed: 0.15, swell: 0.0, breathe: 0.0 }
+  };
+  var target = STATES.off;
+  var cur = { c: [[0.62,0.64,0.70],[0.72,0.74,0.80],[0.55,0.58,0.66]], alpha: 0.38, speed: 0.22, swell: 0, breathe: 0 };
+  window.orbSetState = function (name) { target = STATES[name] || STATES.listening; };
+  function lerp(a, b, k) { return a + (b - a) * k; }
+  function stepState(dt) {
+    var k = Math.min(1, dt * 4.0);
+    for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) cur.c[i][j] = lerp(cur.c[i][j], target.c[i][j], k);
+    cur.alpha = lerp(cur.alpha, target.alpha, k);
+    cur.speed = lerp(cur.speed, target.speed, k);
+    cur.swell = lerp(cur.swell, target.swell, k);
+    cur.breathe = lerp(cur.breathe, target.breathe, k);
+  }
+  window.orbSetLevel = function (v) { targetLevel = Math.max(0, Math.min(1, +v || 0)); };
+  window.orbSetRunning = function (r) {
+    r = !!r;
+    if (r === running) return;
+    running = r;
+    if (running) { last = 0; rafId = requestAnimationFrame(frame); } else { cancelAnimationFrame(rafId); }
+  };
+
+  function frame(now) {
+    if (!running) return;
+    rafId = requestAnimationFrame(frame);
+    if (last === 0) last = now;
+    var dt = (now - last) / 1000;
+    if (dt < 0.020) return;                 // cap at ~50 fps to save battery
+    last = now;
+    if (dt > 0.1) dt = 0.1;
+
+    level += (targetLevel - level) * Math.min(1, dt * 10);
+    stepState(dt);
+    t += dt * cur.speed * (1 + level * 1.6);
+
+    resize();
+
+    // 1) curl-noise lines -> A (premultiplied accumulation)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tA.fb);
+    gl.viewport(0, 0, tA.w, tA.h);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(pMain);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+    gl.enableVertexAttribArray(uvLoc);
+    gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform1f(uMain.time, t * 0.1);
+    gl.uniform1f(uMain.time2, t);
+    var breath = cur.breathe * (0.5 + 0.5 * Math.sin(t * 2.2)) * 0.5;
+    gl.uniform1f(uMain.amp, level * cur.swell + breath);
+    gl.uniform1f(uMain.alphaGain, cur.alpha + level * 0.3);
+    gl.uniform3f(uMain.c0, cur.c[0][0], cur.c[0][1], cur.c[0][2]);
+    gl.uniform3f(uMain.c1, cur.c[1][0], cur.c[1][1], cur.c[1][2]);
+    gl.uniform3f(uMain.c2, cur.c[2][0], cur.c[2][1], cur.c[2][2]);
+    gl.uniform2f(uMain.fit, Math.min(H / W, 1), Math.min(W / H, 1));
+    gl.drawArrays(gl.LINE_STRIP, 0, GRID * GRID);
+    gl.disableVertexAttribArray(uvLoc);
+    gl.disable(gl.BLEND);
+
+    // 2) bloom: horizontal then vertical blur at 1/4 resolution
+    gl.useProgram(pBlur);
+    bindQuad(pBlur);
+    var radius = 2.2;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tB.fb);
+    gl.viewport(0, 0, tB.w, tB.h);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tA.tex);
+    gl.uniform1i(gl.getUniformLocation(pBlur, 'tex'), 0);
+    gl.uniform2f(gl.getUniformLocation(pBlur, 'dir'), radius / tB.w, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tC.fb);
+    gl.bindTexture(gl.TEXTURE_2D, tB.tex);
+    gl.uniform2f(gl.getUniformLocation(pBlur, 'dir'), 0, radius / tC.h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // 3) composite to the (transparent) canvas
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, W, H);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(pComp);
+    bindQuad(pComp);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tA.tex);
+    gl.uniform1i(gl.getUniformLocation(pComp, 'base'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, tC.tex);
+    gl.uniform1i(gl.getUniformLocation(pComp, 'glow'), 1);
+    gl.uniform1f(gl.getUniformLocation(pComp, 'glowGain'), 1.4);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.activeTexture(gl.TEXTURE0);
+
+    frames++;
+    if (!checked && frames === 40) {
+      checked = true;
+      try {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, tC.fb);
+        var px = new Uint8Array(tC.w * tC.h * 4);
+        gl.readPixels(0, 0, tC.w, tC.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        var any = false;
+        for (var q = 3; q < px.length; q += 4) { if (px[q] > 0) { any = true; break; } }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        if (!any || gl.getError() !== gl.NO_ERROR) fail('blank frame');
+      } catch (e) { fail('readback: ' + e); }
+    }
+  }
+
+  canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); });
+  canvas.addEventListener('webglcontextrestored', function () { location.reload(); });
+  document.addEventListener('visibilitychange', function () { window.orbSetRunning(!document.hidden); });
+
+  resize();
+  rafId = requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
