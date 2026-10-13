@@ -96,3 +96,15 @@ Finding: Myra's memory (5-tier Memory 2.0, fact conflict resolver, user correcti
 - **Birthdays / anniversaries** (`learning/UpcomingDates.kt`): tools `remember_date`, `upcoming_dates`, `forget_date`; also mirrored as normal memories. If something falls on today's date, her wake-up greeting wishes them.
 - **`my_favorites` tool**: "meri favourite song kaun si hai", "sabse zyada kise call karta hoon".
 - Settings toggle **Learn My Habits** (default ON; counting stays on the phone).
+
+---
+
+## Phase 5 — Build & security
+
+- **Release signing from properties/env** (`MYRA_RELEASE_*`, old CI env names still work); missing config now warns and yields an unsigned apk instead of breaking the build.
+- **Pinned release certificate + `AppIdentityVerifier`**: BuildConfig `PINNED_RELEASE_CERT_SHA256`, `REQUIRE_RELEASE_PIN`, `DEVELOPER_NAME`, `COPYRIGHT_OWNER`. Mismatch -> app shows an integrity dialog and the voice service stops. No pin configured -> runs with an "Unverified" status (strict mode available). Settings > App Identity & Security.
+- **Secrets encrypted at rest** (`security/SecretVault.kt`, Keystore AES-GCM): Gemini + Mem0 API keys and the browser credential vault (which previously stored site passwords as plain text). Automatic migration.
+- **Network security config**: no clear-text, system CAs only (debug trusts user CAs).
+- **Backup**: `allowBackup=false`. **Receivers**: `BootReceiver`, `IncomingCallReceiver` not exported.
+- **Opt-in R8** (`-PMYRA_MINIFY=true`, shrink-only) with keep rules for WebView bridge, JNI libraries and reflection.
+- `scripts/print_cert_sha256.sh`, `scripts/print_tls_pin.sh`, `SECURITY.md`.

@@ -1621,6 +1621,10 @@ fun AiConfigSection(
             )
         }
 
+        Spacer(Modifier.height(16.dp))
+
+        AppIdentityRow()
+
         Spacer(Modifier.height(18.dp))
 
         // ── Data Saver & Voice Activity Detection (VAD) ─────────────────
@@ -3234,5 +3238,39 @@ fun ScreenCompanionSection(
             Spacer(modifier = Modifier.height(4.dp))
             Text("• \"Screen companion mode on karo\"", color = TextCharcoal, fontSize = 12.sp)
         }
+    }
+}
+
+
+/** Settings row: shows the app's signing identity and whether it matches the pinned official certificate. */
+@androidx.compose.runtime.Composable
+private fun AppIdentityRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var show by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("App Identity & Security", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(
+            "Shows which certificate this app is signed with and whether it matches your official build. Saved API keys and website passwords are encrypted on this phone.",
+            color = TextMidGray, fontSize = 11.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedButton(onClick = { show = true }) { Text("View details") }
+    }
+
+    if (show) {
+        val report = remember { com.soltini.app.security.AppIdentityVerifier.report(ctx) }
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { Text("App Identity & Security") },
+            text = { Text(report, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp) },
+            confirmButton = { TextButton(onClick = { show = false }) { Text("Close") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("Myra app identity", report))
+                }) { Text("Copy") }
+            }
+        )
     }
 }

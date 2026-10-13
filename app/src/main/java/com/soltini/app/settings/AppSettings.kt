@@ -18,8 +18,26 @@ class AppSettings(context: Context) {
     // ── Gemini API Key ────────────────────────────────────────────────────────
 
     var geminiApiKey: String
-        get() = prefs.getString(KEY_API_KEY, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_API_KEY, value.trim()).apply()
+        get() = readSecret(KEY_API_KEY)
+        set(value) = writeSecret(KEY_API_KEY, value.trim())
+
+    // ── Secrets at rest (Keystore AES-GCM, transparent migration from plaintext) ──
+
+    private fun readSecret(key: String): String {
+        val raw = prefs.getString(key, "") ?: ""
+        if (raw.isEmpty()) return ""
+        if (!com.soltini.app.security.SecretVault.isSealed(raw)) {
+            // legacy plaintext: encrypt it now, keep working
+            val sealed = com.soltini.app.security.SecretVault.seal(raw)
+            if (com.soltini.app.security.SecretVault.isSealed(sealed)) prefs.edit().putString(key, sealed).apply()
+            return raw
+        }
+        return com.soltini.app.security.SecretVault.open(raw) ?: ""
+    }
+
+    private fun writeSecret(key: String, value: String) {
+        prefs.edit().putString(key, if (value.isBlank()) "" else com.soltini.app.security.SecretVault.seal(value)).apply()
+    }
 
     /**
      * Returns the user's own key if set, otherwise falls back to the
@@ -209,8 +227,8 @@ class AppSettings(context: Context) {
 
     /** Optional Mem0 Platform API key (starts with m0-...) for cloud sync */
     var mem0ApiKey: String
-        get() = prefs.getString(KEY_MEM0_API_KEY, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_MEM0_API_KEY, value.trim()).apply()
+        get() = readSecret(KEY_MEM0_API_KEY)
+        set(value) = writeSecret(KEY_MEM0_API_KEY, value.trim())
 
     // ── Browser-Use Bridge (remote real-browser automation) ─────────────────
 

@@ -96,6 +96,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!com.soltini.app.security.AppIdentityVerifier.isAllowed(this)) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("App integrity check failed")
+                .setMessage("This copy of Myra is not signed with the official release certificate, so it may have been modified. Sensitive features are blocked. Please install the official build.")
+                .setCancelable(false)
+                .setPositiveButton("Close") { _, _ -> finish() }
+                .show()
+            return
+        }
         com.soltini.app.util.CrashReporter.install(this)
         val pendingCrashReport: String? = com.soltini.app.util.CrashReporter.consumeLastCrash(this)
         enableEdgeToEdge()

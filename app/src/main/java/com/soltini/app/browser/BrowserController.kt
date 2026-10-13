@@ -936,14 +936,14 @@ class BrowserController private constructor(private val appContext: Context) {
             put("password", pass)
             put("timestamp", System.currentTimeMillis())
         }
-        vaultPrefs.edit().putString("cred_$cleanDomain", data.toString()).apply()
+        vaultPrefs.edit().putString("cred_$cleanDomain", com.soltini.app.security.SecretVault.seal(data.toString())).apply()
         Log.i(TAG, "Saved credential for domain: $cleanDomain")
     }
 
     fun getCredential(domain: String): JSONObject? {
         val cleanDomain = extractDomain(domain)
         val raw = vaultPrefs.getString("cred_$cleanDomain", null) ?: return null
-        return try { JSONObject(raw) } catch (_: Exception) { null }
+        return openCredential("cred_$cleanDomain", raw)
     }
 
     private fun saveLoginAction(url: String, username: String, pass: String): String {
@@ -1042,13 +1042,23 @@ class BrowserController private constructor(private val appContext: Context) {
         val result = mutableMapOf<String, JSONObject>()
         for ((k, v) in vaultPrefs.all) {
             if (k.startsWith("cred_") && v is String) {
-                try {
-                    val domain = k.removePrefix("cred_")
-                    result[domain] = JSONObject(v)
-                } catch (_: Exception) {}
+                val domain = k.removePrefix("cred_")
+                openCredential(k, v)?.let { result[domain] = it }
             }
         }
         return result
+    }
+
+    /** Decrypts a vault entry; legacy plaintext entries are read and immediately re-saved encrypted. */
+    private fun openCredential(prefKey: String, raw: String): JSONObject? {
+        return try {
+            val plain = com.soltini.app.security.SecretVault.open(raw) ?: return null
+            if (!com.soltini.app.security.SecretVault.isSealed(raw)) {
+                val sealed = com.soltini.app.security.SecretVault.seal(plain)
+                if (com.soltini.app.security.SecretVault.isSealed(sealed)) vaultPrefs.edit().putString(prefKey, sealed).apply()
+            }
+            JSONObject(plain)
+        } catch (_: Exception) { null }
     }
 
     fun deleteCredential(domain: String) {

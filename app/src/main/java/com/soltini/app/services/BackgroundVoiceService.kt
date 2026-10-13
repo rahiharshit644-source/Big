@@ -462,6 +462,11 @@ Speak now immediately!"""
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!com.soltini.app.security.AppIdentityVerifier.isAllowed(this)) {
+            Log.e(TAG, "Blocked: signing certificate does not match the pinned release certificate")
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (_isSleeping.value && !_isLitePaused.value && !_isHardPaused.value) {
             wakeUp()
         }

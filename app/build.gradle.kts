@@ -9,6 +9,28 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// ── Release signing & identity pin (Phase 5) ─────────────────────────────────
+// Everything can come from gradle.properties / ~/.gradle/gradle.properties or environment variables.
+// New names are MYRA_*; the older KEYSTORE_PATH / STORE_PASSWORD / KEY_PASSWORD env names still work (CI).
+fun cfg(name: String): String? = providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull
+
+fun buildConfigString(value: String): String =
+  "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val releaseStorePath = cfg("MYRA_RELEASE_STORE_FILE") ?: cfg("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+val releaseStorePassword = cfg("MYRA_RELEASE_STORE_PASSWORD") ?: cfg("STORE_PASSWORD")
+val releaseKeyAlias = cfg("MYRA_RELEASE_KEY_ALIAS") ?: "upload"
+val releaseKeyPassword = cfg("MYRA_RELEASE_KEY_PASSWORD") ?: cfg("KEY_PASSWORD")
+val releaseSigningReady = !releaseStorePassword.isNullOrBlank() && !releaseKeyPassword.isNullOrBlank() && file(releaseStorePath).exists()
+// SHA-256 of the release certificate (colons optional, several separated by commas). Print it with scripts/print_cert_sha256.sh
+val releaseCertSha256 = (cfg("MYRA_RELEASE_CERT_SHA256") ?: "").replace(":", "").uppercase()
+val developerName = cfg("MYRA_DEVELOPER_NAME")?.ifBlank { null } ?: "Unconfigured"
+val copyrightOwner = cfg("MYRA_COPYRIGHT_OWNER")?.ifBlank { null } ?: "Unconfigured"
+// true = a release build WITHOUT a pinned certificate refuses to run (fail closed). Default false so your own builds keep working.
+val requireReleasePin = cfg("MYRA_REQUIRE_PIN").equals("true", ignoreCase = true)
+// true = turn on R8 shrinking for release (see proguard-rules.pro). Off by default because it cannot be tested without a device.
+val minifyRelease = cfg("MYRA_MINIFY").equals("true", ignoreCase = true)
+
 android {
   namespace = "com.soltini.app"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -21,15 +43,21 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField("String", "PINNED_RELEASE_CERT_SHA256", buildConfigString(releaseCertSha256))
+    buildConfigField("boolean", "REQUIRE_RELEASE_PIN", requireReleasePin.toString())
+    buildConfigField("String", "DEVELOPER_NAME", buildConfigString(developerName))
+    buildConfigField("String", "COPYRIGHT_OWNER", buildConfigString(copyrightOwner))
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      if (releaseSigningReady) {
+        storeFile = file(releaseStorePath)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -42,9 +70,14 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = minifyRelease
+      isShrinkResources = minifyRelease
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      if (releaseSigningReady) {
+        signingConfig = signingConfigs.getByName("release")
+      } else {
+        logger.warn("WARNING: release signing is not configured (set MYRA_RELEASE_STORE_FILE / _STORE_PASSWORD / _KEY_ALIAS / _KEY_PASSWORD). assembleRelease will produce an UNSIGNED apk.")
+      }
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

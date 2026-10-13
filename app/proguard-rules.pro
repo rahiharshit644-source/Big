@@ -30,3 +30,25 @@
 -keepclassmembers class * extends com.sun.jna.** { *; }
 -dontwarn java.awt.**
 -dontwarn com.sun.jna.**
+
+# ── Phase 5: rules used when building with -PMYRA_MINIFY=true ─────────────────
+# Shrink only, never rename: keeps reflection / JSON field names / stack traces intact.
+-dontobfuscate
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable
+
+# WebView JavaScript bridges
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# Services / receivers / accessibility are referenced from the manifest (kept automatically); keep entry points explicitly
+-keep class com.soltini.app.agent.SoltiniAccessibilityService { *; }
+-keep class com.soltini.app.notifications.SoltiniNotificationListener { *; }
+
+# Room, WorkManager workers, and anything constructed by reflection
+-keep class * extends androidx.work.ListenableWorker { <init>(...); }
+-keep class * extends androidx.room.RoomDatabase { *; }
+
+# org.json / coroutines / OkHttp ship their own consumer rules
+-dontwarn org.slf4j.**
+-dontwarn javax.annotation.**
