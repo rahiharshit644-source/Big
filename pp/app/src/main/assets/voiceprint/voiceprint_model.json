@@ -1,0 +1,13 @@
+{
+  "sampleRate": 16000,
+  "numMelBins": 80,
+  "frameLengthMs": 25,
+  "frameShiftMs": 10,
+  "preEmphasis": 0.97,
+  "applyCmn": true,
+  "embeddingDim": 0,
+  "minSpeechMs": 1500,
+  "inputLayout": "BTF",
+  "inputName": "",
+  "outputName": ""
+}

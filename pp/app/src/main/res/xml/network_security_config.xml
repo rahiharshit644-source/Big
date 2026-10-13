@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security (Phase 5)
+  - No clear-text (http://) traffic.
+  - Only the phone's built-in CA certificates are trusted: certificates the user (or malware) installed
+    by hand are NOT accepted, which blocks most man-in-the-middle interception of Gemini / Mem0 traffic.
+  - Debug builds also trust user-installed CAs so you can inspect traffic with mitmproxy/Charles.
+
+  Your Browser-Use bridge server (Settings > Browser-Use Server URL) must therefore use https://.
+  To keep a plain-http bridge on your own network, uncomment the domain-config below and put its host/IP in:
+
+  <domain-config cleartextTrafficPermitted="true">
+      <domain includeSubdomains="false">192.168.1.23</domain>
+  </domain-config>
+
+  Optional TLS certificate pinning for the Gemini API is intentionally NOT enabled: Google rotates
+  its certificate authorities, and a stale pin would silently break every Gemini call. scripts/print_tls_pin.sh
+  prints current pin values if you want to add a <pin-set> yourself.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
