@@ -366,9 +366,12 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
                 com.soltini.app.voiceprint.data.VoiceprintRepository.getInstance(this)
             )
             vpVerifier.sensitivityOffset = appSettings.voiceprintSensitivityOffset
-            voiceGate = com.soltini.app.voiceprint.gate.VoiceGate(vpVerifier) { bytes ->
-                geminiLiveManager.sendAudioChunk(bytes)
-            }.apply {
+            voiceGate = com.soltini.app.voiceprint.gate.VoiceGate(
+                verifier = vpVerifier,
+                forwardToConsumer = { bytes ->
+                    geminiLiveManager.sendAudioChunk(bytes)
+                }
+            ).apply {
                 mode = com.soltini.app.voiceprint.gate.VoiceGateMode.fromString(appSettings.voiceGateMode)
             }
             serviceScope.launch { vpVerifier.reloadProfile() }
