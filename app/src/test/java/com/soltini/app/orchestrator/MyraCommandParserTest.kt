@@ -193,24 +193,55 @@ class MyraCommandParserTest {
 
     @Test
     fun testDestinationResolverDefaultAndExplicitOverrides() {
-        // Default Internal Browser
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Google par search karo Python"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("YouTube par Arijit Singh ka song chalao"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("YouTube par ye video dekho"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Search karo Python tutorial"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Website kholo https://example.com"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Song chalao"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Video chalao"))
-        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolve("Song bajao"))
+        // Web intents default to the real Chrome app
+        assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Google par search karo Python"))
+        assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Search karo Python tutorial"))
+        assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Website kholo https://example.com"))
+
+        // Song / video intents default to the real YouTube app
+        assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("YouTube par Arijit Singh ka song chalao"))
+        assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("YouTube par ye video dekho"))
+        assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("Song chalao"))
+        assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("Video chalao"))
+        assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("Song bajao"))
 
         // Explicit Chrome override
         assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Chrome par search karo Tesla"))
         assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Chrome mein ye website kholo"))
         assertEquals(AppDestination.CHROME_APP, DestinationResolver.resolve("Chrome par YouTube search karo"))
 
-        // Explicit YouTube App override
+        // Explicit YouTube App
         assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("YouTube app par Arijit Singh ka song bajao"))
         assertEquals(AppDestination.YOUTUBE_APP, DestinationResolver.resolve("YouTube application mein ye video chalao"))
+
+        // Internal browser ONLY when explicitly requested
+        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolveWeb("Internal browser mein Python search karo"))
+        assertEquals(AppDestination.INTERNAL_BROWSER, DestinationResolver.resolveMedia("Internal browser mein Tum Hi Ho song chalao"))
+        assertTrue(DestinationResolver.wantsInternalBrowser("Tum Hi Ho", "internal_browser"))
+        assertFalse(DestinationResolver.wantsInternalBrowser("Tum Hi Ho", ""))
+    }
+
+    @Test
+    fun testSpotifyParsing() {
+        val s1 = MyraCommandParser.parse("Spotify par Tum Hi Ho chalao")
+        assertTrue("Expected SpotifyPlay but got $s1", s1 is ParsedAction.SpotifyPlay)
+        assertEquals("Tum Hi Ho", (s1 as ParsedAction.SpotifyPlay).query)
+
+        val s2 = MyraCommandParser.parse("Arijit Singh ke gaane Spotify pe bajao")
+        assertTrue("Expected SpotifyPlay but got $s2", s2 is ParsedAction.SpotifyPlay)
+        assertEquals("Arijit Singh", (s2 as ParsedAction.SpotifyPlay).query)
+
+        // Bare "spotify kholo" has no song -> not a SpotifyPlay
+        assertFalse(MyraCommandParser.parse("Spotify kholo") is ParsedAction.SpotifyPlay)
+    }
+
+    @Test
+    fun testDefaultDestinationsInParsedActions() {
+        val web = MyraCommandParser.parse("Google par Python tutorial search karo") as ParsedAction.WebSearch
+        assertEquals(AppDestination.CHROME_APP, web.destination)
+
+        val yt = MyraCommandParser.parse("Tum hi ho song bajao") as ParsedAction.YouTubePlay
+        assertEquals(AppDestination.YOUTUBE_APP, yt.destination)
     }
 
     @Test

@@ -94,6 +94,7 @@ class MyraOrchestrator private constructor(
     private val callManager = com.soltini.app.telephony.CallNotificationManager.getInstance(context)
     private val smsSender = com.soltini.app.telephony.SmsSender(context)
     private val youTubeAutomator = com.soltini.app.agent.YouTubeAutomator(context)
+    private val spotifyAutomator = com.soltini.app.agent.SpotifyAutomator(context)
     private val agentToolExecutor = com.soltini.app.agent.AgentToolExecutor(context)
     private val browserController = com.soltini.app.browser.BrowserController.getInstance(context)
     private val voiceProfileManager = com.soltini.app.security.VoiceProfileManager.getInstance(context)
@@ -326,6 +327,33 @@ class MyraOrchestrator private constructor(
         // ═════════════════════════════════════════════════════════════════════
         // DETERMINISTIC ACTION PARSING (Phone Calls, SMS, YouTube & Web Search)
         // ═════════════════════════════════════════════════════════════════════
+        // Busy Mode: spoken confirmation ("bhej do", "mummy ko bhej do", "skip") for a pending reply draft.
+        run {
+            val busyForConfirm = com.soltini.app.messaging.BusyModeManager.getInstance(context)
+            if (busyForConfirm.isBusyModeActive() && busyForConfirm.hasPendingDrafts()) {
+                val ci = com.soltini.app.messaging.BusyContactPolicy.parseConfirmation(cleanedInput)
+                if (ci != null && busyForConfirm.hasPendingFor(ci.name)) {
+                    val reply = when (ci.kind) {
+                        com.soltini.app.messaging.BusyContactPolicy.ConfirmKind.SEND -> busyForConfirm.confirmLatestOrNamed(ci.name)
+                        com.soltini.app.messaging.BusyContactPolicy.ConfirmKind.SKIP -> busyForConfirm.skipLatestOrNamed(ci.name)
+                    }
+                    val plan = OrchestratorPlan(
+                        userGoal = cleanedInput,
+                        intentType = IntentType.ACTIONABLE,
+                        status = PlanStatus.COMPLETED,
+                        finalResponse = reply
+                    )
+                    return@withContext OrchestratorResult(
+                        plan = plan,
+                        isSuccess = true,
+                        responseText = reply,
+                        memoryUpdated = false,
+                        executionDurationMs = System.currentTimeMillis() - startTime
+                    )
+                }
+            }
+        }
+
         val parsedAction = MyraCommandParser.parse(cleanedInput)
         if (parsedAction != null) {
             Log.i(TAG, "MyraCommandParser matched: $parsedAction")
@@ -458,12 +486,12 @@ class MyraOrchestrator private constructor(
 
                     val reply = if (parsedAction.enable) {
                         val reason = busyManager.enableBusyMode(parsedAction.reason)
-                        "Ji Boss! Busy mode on kar diya gaya hai ($reason). Ab WhatsApp, Instagram, Telegram ya SMS par jo bhi naye messages aayenge, main bina kisi loop ke unka polite reply khud de dungi. Jab aap free ho jayein to bas boliyega 'Main free ho gaya'."
+                        "Ji Boss! Busy mode on kar diya gaya hai ($reason). Ab naye messages padhkar main har baat ka jawab draft karungi, par aapki confirmation ke bina kuch nahi bhejungi (notification me 'Bhejo' dabayein ya bolein 'bhej do'). Kisi bhi group me main kabhi message nahi karungi. Free hone par bas boliyega 'Main free ho gaya'."
                     } else {
                         val summary = busyManager.disableBusyMode()
                         if (summary.totalRepliedCount > 0) {
                             val contacts = summary.uniqueSenders.joinToString(", ")
-                            "Ji Boss, welcome back! Busy mode off kar diya gaya hai. Is session me maine kul ${summary.totalRepliedCount} messages ka reply kiya ($contacts)."
+                            "Ji Boss, welcome back! Busy mode off kar diya gaya hai. Is session me aapki confirmation se ${summary.totalRepliedCount} replies gaye ($contacts).${if (summary.unsentDraftCount > 0) " ${summary.unsentDraftCount} draft bina bheje hata diye." else ""}"
                         } else {
                             "Ji Boss, Busy mode off kar diya gaya hai. Is dauran koi naya message nahi aaya tha."
                         }
@@ -487,7 +515,7 @@ class MyraOrchestrator private constructor(
                     val busyManager = com.soltini.app.messaging.BusyModeManager.getInstance(context)
                     val history = busyManager.getRecentHistory(8)
                     val reply = if (history.isEmpty()) {
-                        "Boss, abhi tak busy mode me koi auto-reply nahi bheja gaya hai."
+                        "Boss, abhi tak busy mode me aapki confirmation se koi reply nahi bheja gaya hai."
                     } else {
                         val items = history.joinToString("\n") { "• ${it.appName} (${it.sender}): \"${it.replyText}\"" }
                         "Boss, recent auto-replies ka record:\n$items"
@@ -507,34 +535,38 @@ class MyraOrchestrator private constructor(
                     )
                 }
                 is ParsedAction.MediaControl -> {
+                    // Internal Browser is no longer the default player. Only talk to it when it is
+                    // really the thing that is playing; otherwise use system media keys, which control
+                    // whatever is playing (YouTube app, Spotify, YouTube Music ...).
+                    val browserPlaying = com.soltini.app.media.MyraPlaybackContext.isPlaying()
                     val reply = when (parsedAction.actionType) {
                         MediaActionType.PAUSE -> {
                             onStatusUpdate?.invoke("Media playback pause kar rahe hain...")
-                            browserController.pauseMedia()
-                            "Ji Boss, Internal Browser playback pause kar diya hai."
+                            if (browserPlaying) browserController.pauseMedia() else youTubeAutomator.pause()
+                            "Ji Boss, playback pause kar diya hai."
                         }
                         MediaActionType.RESUME, MediaActionType.PLAY -> {
                             onStatusUpdate?.invoke("Media playback resume kar rahe hain...")
-                            browserController.resumeMedia()
-                            "Ji Boss, Internal Browser playback resume kar diya hai."
+                            if (browserPlaying) browserController.resumeMedia() else youTubeAutomator.resume()
+                            "Ji Boss, playback resume kar diya hai."
                         }
                         MediaActionType.NEXT -> {
                             onStatusUpdate?.invoke("Agla song play kar rahe hain...")
-                            browserController.nextMedia()
+                            if (browserPlaying) browserController.nextMedia() else youTubeAutomator.nextVideo()
                             "Ji Boss, agla track play kar rahe hain."
                         }
                         MediaActionType.PREVIOUS -> {
                             onStatusUpdate?.invoke("Pichla song play kar rahe hain...")
-                            browserController.previousMedia()
+                            if (browserPlaying) browserController.previousMedia() else youTubeAutomator.previousVideo()
                             "Ji Boss, pichla track play kar rahe hain."
                         }
                         MediaActionType.STOP -> {
                             onStatusUpdate?.invoke("Media playback stop kar rahe hain...")
-                            browserController.stopMedia()
+                            if (browserPlaying) browserController.stopMedia() else youTubeAutomator.stop()
                             "Ji Boss, playback stop kar diya hai."
                         }
                         MediaActionType.BACKGROUND_MODE -> {
-                            browserController.ensureBackgroundPlayback()
+                            if (browserPlaying) browserController.ensureBackgroundPlayback()
                             "Ji Boss, background playback mode active hai. App minimize ya screen lock hone par bhi playback continue rahega."
                         }
                     }
@@ -549,6 +581,30 @@ class MyraOrchestrator private constructor(
                         isSuccess = true,
                         responseText = reply,
                         memoryUpdated = false,
+                        executionDurationMs = System.currentTimeMillis() - startTime
+                    )
+                }
+                is ParsedAction.SpotifyPlay -> {
+                    onStatusUpdate?.invoke("Spotify par '${parsedAction.query}' play kar rahe hain...")
+                    val res = spotifyAutomator.play(parsedAction.query)
+                    val st = res.optString("status")
+                    val ok = st == "playing"
+                    val reply = when {
+                        ok -> "Ji Boss, Spotify par '${parsedAction.query}' play ho raha hai."
+                        st == "search_opened" -> res.optString("message", "Spotify search khul gaya hai, par gaana confirm nahi ho paya.")
+                        else -> "Spotify par '${parsedAction.query}' play karne me samasya aayi: ${res.optString("error", res.optString("message", "Spotify nahi khula"))}."
+                    }
+                    val plan = OrchestratorPlan(
+                        userGoal = cleanedInput,
+                        intentType = IntentType.ACTIONABLE,
+                        status = if (ok) PlanStatus.COMPLETED else PlanStatus.FAILED,
+                        finalResponse = reply
+                    )
+                    return@withContext OrchestratorResult(
+                        plan = plan,
+                        isSuccess = ok,
+                        responseText = reply,
+                        memoryUpdated = true,
                         executionDurationMs = System.currentTimeMillis() - startTime
                     )
                 }
@@ -580,9 +636,10 @@ class MyraOrchestrator private constructor(
                         AppDestination.YOUTUBE_APP -> {
                             onStatusUpdate?.invoke("YouTube app par '${parsedAction.cleanQuery}' play kar rahe hain...")
                             val res = youTubeAutomator.playSong(parsedAction.cleanQuery)
-                            val ok = res.optString("status") == "playing" || res.optString("status") == "success"
+                            val st = res.optString("status")
+                            val ok = st == "playing" || st == "success" || st == "playing_video" || st == "searching" || st == "searching_web_fallback"
                             if (ok) "Ji Boss, YouTube app par '${parsedAction.cleanQuery}' play ho raha hai."
-                            else "YouTube app par play karne me samasya aayi: ${res.optString("message", "App nahi khula")}."
+                            else "YouTube app par play karne me samasya aayi: ${res.optString("error", res.optString("message", "App nahi khula"))}."
                         }
                         AppDestination.CHROME_APP -> {
                             onStatusUpdate?.invoke("Chrome app par YouTube search kar rahe hain...")
@@ -614,9 +671,10 @@ class MyraOrchestrator private constructor(
                         AppDestination.YOUTUBE_APP -> {
                             onStatusUpdate?.invoke("YouTube app par '${parsedAction.cleanQuery}' search kar rahe hain...")
                             val res = youTubeAutomator.search(parsedAction.cleanQuery)
-                            val ok = res.optString("status") == "searching" || res.optString("status") == "success"
+                            val st = res.optString("status")
+                            val ok = st == "searching" || st == "searching_web_fallback" || st == "playing_video" || st == "success"
                             if (ok) "Ji Boss, YouTube app par '${parsedAction.cleanQuery}' search kar diya hai."
-                            else "YouTube app par search karne me samasya aayi: ${res.optString("message", "App nahi khula")}."
+                            else "YouTube app par search karne me samasya aayi: ${res.optString("error", res.optString("message", "App nahi khula"))}."
                         }
                         AppDestination.CHROME_APP -> {
                             onStatusUpdate?.invoke("Chrome app par YouTube search kar rahe hain...")

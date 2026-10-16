@@ -8,7 +8,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -577,8 +576,6 @@ class FormAutomator(private val context: Context) {
     }
 
     private fun safeSleep(ms: Long) {
-        try {
-            Thread.sleep(ms)
-        } catch (_: InterruptedException) {}
+        UiWait.pause(ms)
     }
 }

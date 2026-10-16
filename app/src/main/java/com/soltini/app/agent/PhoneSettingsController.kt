@@ -99,7 +99,13 @@ class PhoneSettingsController(private val context: Context) {
             }.coerceIn(1, 100)
             Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
             Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, target * 255 / 100)
-            ok("status", "success", "brightness_percent", target)
+            // Verify by reading the value back from the system
+            val actual = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, -1) * 100 / 255
+            if (kotlin.math.abs(actual - target) <= 2) {
+                ok("status", "success", "brightness_percent", target, "verified", true)
+            } else {
+                ok("status", "unverified", "brightness_percent", actual, "message", "Brightness set nahi ho paayi (system ne value $actual% rakhi).")
+            }
         } catch (e: Exception) {
             err("Could not change brightness: ${e.message}")
         }
@@ -118,7 +124,10 @@ class PhoneSettingsController(private val context: Context) {
                 putExtra("com.android.browser.application_id", context.packageName)
             }
             if (start(chrome) || start(Intent(Intent.ACTION_VIEW, uri))) opened++
-            if (i < list.size - 1) try { Thread.sleep(450) } catch (_: InterruptedException) {}
+            if (i < list.size - 1 && !UiWait.settle(1200, 200)) {
+                // no accessibility info available: keep a short pause so Chrome can take each intent
+                try { Thread.sleep(450) } catch (_: InterruptedException) {}
+            }
         }
         return ok("status", if (opened > 0) "opened" else "error", "opened", opened, "urls", org.json.JSONArray(list))
     }

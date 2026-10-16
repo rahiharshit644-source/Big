@@ -632,69 +632,140 @@ class SoltiniAccessibilityService : AccessibilityService() {
 
     // ─── Typing ───────────────────────────────────────────────────────────────
 
+    /** Result of a typing attempt: [ok] = some action was accepted, [verified] = text was read back from the field. */
+    data class TypeOutcome(val ok: Boolean, val verified: Boolean, val fieldText: String = "")
+
+    private fun setClipboardText(text: String) {
+        try {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("soltini_type", text))
+            } else {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("soltini_type", text))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to set clipboard on main thread: ${e.message}")
+                    } finally {
+                        latch.countDown()
+                    }
+                }
+                latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Clipboard set error: ${e.message}")
+        }
+    }
+
+    /** Reads the REAL text currently in a field (refreshes the node; ignores hint/placeholder text). */
+    fun readFieldText(node: AccessibilityNodeInfo): String {
+        return try {
+            node.refresh()
+            if (node.isPassword) return "(hidden)"
+            val showingHint = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && node.isShowingHintText
+            if (showingHint) "" else (node.text?.toString() ?: "")
+        } catch (_: Exception) { "" }
+    }
+
+    private fun readbackMatches(node: AccessibilityNodeInfo, expected: String): Boolean {
+        return try {
+            node.refresh()
+            if (node.isPassword) return true // masked field: cannot be read back, trust the action
+            val norm = { v: String -> v.replace(Regex("\\s+"), " ").trim() }
+            val current = norm(readFieldText(node))
+            val want = norm(expected)
+            if (want.isEmpty()) current.isEmpty()
+            else current.equals(want, ignoreCase = true) || current.contains(want, ignoreCase = true)
+        } catch (_: Exception) { false }
+    }
+
     /**
-     * Sets text into a target node. Tries ACTION_SET_TEXT first.
-     * If that returns false (common in WebViews, Chrome, React Native, Flutter),
-     * automatically falls back to system Clipboard + ACTION_PASTE.
+     * Puts [text] into [node] and CHECKS that it really landed.
+     *  Tier 1: ACTION_SET_TEXT (+ read-back)
+     *  Tier 2: tap the field to focus it, ACTION_SET_TEXT again (+ read-back)
+     *  Tier 3: clipboard + select-all + ACTION_PASTE (+ read-back)
+     * Returns 2 = verified, 1 = an action was accepted but the text could not be confirmed, 0 = failed.
      */
-    fun setTextOrPaste(node: AccessibilityNodeInfo, text: String): Boolean {
+    fun inputWithVerification(node: AccessibilityNodeInfo, text: String): Int {
+        var accepted = false
         try {
             node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
             node.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
         } catch (_: Exception) {}
 
-        // Level 1: ACTION_SET_TEXT
-        val args = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-        }
-        val setTextOk = try {
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        } catch (_: Exception) { false }
-
-        if (setTextOk) {
-            Log.i(TAG, "setText via ACTION_SET_TEXT succeeded: '$text'")
-            return true
+        fun setTextAction(): Boolean {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            return try { node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) } catch (_: Exception) { false }
         }
 
-        // Level 2: Fallback to Clipboard + ACTION_PASTE
-        return try {
-            try {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.setPrimaryClip(ClipData.newPlainText("soltini_type", text))
-                } else {
-                    Handler(Looper.getMainLooper()).post {
-                        try {
-                            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            cm.setPrimaryClip(ClipData.newPlainText("soltini_type", text))
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to set clipboard on main thread: ${e.message}")
-                        }
+        // Tier 1
+        if (setTextAction()) {
+            accepted = true
+            Thread.sleep(90)
+            if (readbackMatches(node, text)) {
+                Log.i(TAG, "input: Tier1 SET_TEXT verified")
+                return 2
+            }
+            Log.w(TAG, "input: SET_TEXT returned true but text not visible in field - trying next tier")
+        }
+
+        // Tier 2: tap to focus, then SET_TEXT again
+        try {
+            val bounds = Rect()
+            node.getBoundsInScreen(bounds)
+            if (node.isVisibleToUser && bounds.width() > 0 && bounds.height() > 0) {
+                tapAt(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+                Thread.sleep(220)
+                if (setTextAction()) {
+                    accepted = true
+                    Thread.sleep(90)
+                    if (readbackMatches(node, text)) {
+                        Log.i(TAG, "input: Tier2 tap+SET_TEXT verified")
+                        return 2
                     }
-                    Thread.sleep(60)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Clipboard set error: ${e.message}")
-            }
-
-            var pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-            if (!pasted) {
-                // If not focused, physically tap the field to bring cursor, then paste
-                val bounds = Rect()
-                node.getBoundsInScreen(bounds)
-                if (bounds.width() > 0 && bounds.height() > 0) {
-                    tapAt(bounds.centerX().toFloat(), bounds.centerY().toFloat())
-                    Thread.sleep(150)
-                    pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
                 }
             }
-            Log.i(TAG, "setText via Clipboard ACTION_PASTE result: $pasted")
-            pasted
         } catch (e: Exception) {
-            Log.w(TAG, "setText ACTION_PASTE fallback error: ${e.message}")
-            false
+            Log.w(TAG, "input: Tier2 error: ${e.message}")
         }
+
+        // Tier 3: clipboard paste (replace existing content)
+        if (text.isNotEmpty()) {
+            try {
+                setClipboardText(text)
+                val existing = readFieldText(node)
+                if (existing.isNotEmpty()) {
+                    val sel = Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, existing.length)
+                    }
+                    node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
+                }
+                val pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                if (pasted) accepted = true
+                Thread.sleep(160)
+                if (readbackMatches(node, text)) {
+                    Log.i(TAG, "input: Tier3 PASTE verified")
+                    return 2
+                }
+                Log.w(TAG, "input: PASTE result=$pasted, not verified")
+            } catch (e: Exception) {
+                Log.w(TAG, "input: Tier3 error: ${e.message}")
+            }
+        }
+        return if (accepted) 1 else 0
     }
+
+    /**
+     * Backward-compatible: true when any tier was accepted. Use [inputWithVerification]
+     * when you need to know whether the text really appeared.
+     */
+    fun setTextOrPaste(node: AccessibilityNodeInfo, text: String): Boolean =
+        inputWithVerification(node, text) > 0
 
     /**
      * Submits or presses the Enter / Search key on the onscreen keyboard or focused node.
@@ -745,55 +816,74 @@ class SoltiniAccessibilityService : AccessibilityService() {
         }
     }
 
-    fun typeText(text: String): Boolean {
+    /**
+     * Types [text] into the focused / last-focused / first editable field and reports
+     * whether it was actually confirmed in the field (read-back), so callers never
+     * claim "typed" when the text is only drafted.
+     */
+    fun typeTextDetailed(text: String): TypeOutcome {
         try {
             return withRootNodes { roots ->
-                // 1. Try currently focused input node across active windows
-                for (root in roots) {
-                    val focusedInput = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                    if (focusedInput != null) {
-                        val ok = setTextOrPaste(focusedInput, text)
-                        focusedInput.recycle()
-                        if (ok) return@withRootNodes true
-                    }
+                var unverified: TypeOutcome? = null
 
-                    val a11yFocused = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
-                    if (a11yFocused != null) {
-                        val ok = setTextOrPaste(a11yFocused, text)
-                        a11yFocused.recycle()
-                        if (ok) return@withRootNodes true
+                fun attempt(node: AccessibilityNodeInfo): TypeOutcome? {
+                    val r = inputWithVerification(node, text)
+                    return when (r) {
+                        2 -> TypeOutcome(true, true, readFieldText(node))
+                        1 -> TypeOutcome(true, false, readFieldText(node))
+                        else -> null
                     }
                 }
 
-                // 2. Try lastFocusedEditable if still valid
+                // 1. Focused input / accessibility-focused node across windows
+                for (root in roots) {
+                    val focusedInput = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                    if (focusedInput != null) {
+                        val o = attempt(focusedInput)
+                        focusedInput.recycle()
+                        if (o != null) { if (o.verified) return@withRootNodes o else if (unverified == null) unverified = o }
+                    }
+                    val a11yFocused = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+                    if (a11yFocused != null && (a11yFocused.isEditable || a11yFocused.className?.toString()?.contains("EditText", true) == true)) {
+                        val o = attempt(a11yFocused)
+                        a11yFocused.recycle()
+                        if (o != null) { if (o.verified) return@withRootNodes o else if (unverified == null) unverified = o }
+                    }
+                }
+                if (unverified != null) return@withRootNodes unverified!!
+
+                // 2. Cached last focused editable
                 val cached = lastFocusedEditable
                 if (cached != null) {
                     try {
-                        val ok = setTextOrPaste(cached, text)
-                        if (ok) return@withRootNodes true
+                        cached.refresh()
+                        val o = attempt(cached)
+                        if (o != null) return@withRootNodes o
                     } catch (_: Exception) {
                         lastFocusedEditable = null
                     }
                 }
 
-                // 3. Find any editable field on screen
+                // 3. Any editable field on screen
                 for (root in roots) {
                     val editable = findFirstEditable(root)
                     if (editable != null) {
-                        val ok = setTextOrPaste(editable, text)
+                        val o = attempt(editable)
                         editable.recycle()
-                        if (ok) return@withRootNodes true
+                        if (o != null) return@withRootNodes o
                     }
                 }
 
                 Log.w(TAG, "typeText: no editable field found on screen")
-                false
+                TypeOutcome(false, false)
             }
         } catch (e: Exception) {
             Log.e(TAG, "typeText failed: ${e.message}")
-            return false
+            return TypeOutcome(false, false)
         }
     }
+
+    fun typeText(text: String): Boolean = typeTextDetailed(text).ok
 
     fun clearText(): Boolean = typeText("")
 

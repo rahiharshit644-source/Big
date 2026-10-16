@@ -94,6 +94,13 @@ class AgentTaskEngine(
     private val actionLog = ArrayList<String>()
     private var recoveries = 0
     private var queuedResponses: JSONArray? = null
+
+    // learned workflows (macros) + checkpoint/resume
+    private val recorded = ArrayList<MacroStep>()
+    private var macroUnsafe = false
+    private var resumeMode = false
+    private var replayedSteps = 0
+    private var replayHint = ""
     private var say: (String) -> Unit = { AgentStatusBus.emit(it) }
 
     // ───────────────────────── control from outside ─────────────────────────
@@ -163,6 +170,20 @@ class AgentTaskEngine(
             var shotQuestion: String? = null       // non-null = attach a screenshot (text = the question, may be empty)
             var firstTurn = true
 
+            // learned workflow: same request done before? replay it without the LLM (falls back safely)
+            if (!resumeMode && plan.scope == "single") {
+                val macro = MacroStore.find(context, goal)
+                if (macro != null) {
+                    val done = tryReplayMacro(apiKey, macro)
+                    if (done != null) return@withContext end(TaskState.COMPLETED, done)
+                    if (cancelled) return@withContext end(TaskState.CANCELLED, "Task cancelled.")
+                    uiActions += replayedSteps
+                    macroUnsafe = true            // do not overwrite the saved routine from a mixed run
+                    lastSig = ScreenObserver.signature()
+                    if (replayHint.isNotEmpty()) hint = replayHint
+                }
+            }
+
             while (step < maxSteps) {
                 if (cancelled) return@withContext end(TaskState.CANCELLED, "Task cancelled.")
                 if (System.currentTimeMillis() > deadline) {
@@ -182,7 +203,7 @@ class AgentTaskEngine(
                         }
                         noProgress == 3 -> {
                             if (shotQuestion == null) shotQuestion = "Why are my actions not working?"
-                            "RECOVERY: still no progress. A screenshot is attached - use it and tap by coordinates if needed."
+                            "RECOVERY: still no progress. A screenshot is attached - use it, or call tap_by_vision(description) to tap what you can see."
                         }
                         else -> if (dismissPopup()) "RECOVERY: I closed a pop-up that may have been blocking the screen."
                                 else "RECOVERY: your last actions had no effect. Try a different target, scroll, or look_at_screen."
@@ -256,6 +277,8 @@ class AgentTaskEngine(
                 // ── act ──
                 val payload = JSONObject()
                 var isUi = false
+                var executed: Pair<String, JSONObject>? = null
+                var executedOk = false
 
                 when (name) {
                     "finish_task" -> {
@@ -273,12 +296,14 @@ class AgentTaskEngine(
                                 finishRejections++
                                 payload.put("accepted", false).put("reason", "Final check says the goal is NOT visibly done: ${check.second}. Fix it, then finish again.")
                             } else {
+                                saveMacroIfEligible()
                                 return@withContext end(TaskState.COMPLETED, summary)
                             }
                         }
                     }
 
                     "ask_user" -> {
+                        macroUnsafe = true
                         val answer = askUser(args.optString("question", "Boss, I need your help to continue."))
                         if (answer == "CANCELLED") return@withContext end(TaskState.CANCELLED, "Task cancelled.")
                         payload.put("user_answer", answer)
@@ -328,6 +353,7 @@ class AgentTaskEngine(
                     else -> {
                         val verdict = RiskGate.check(name, args, appSettings.isAgentRiskConfirmEnabled)
                         var skip = false
+                        if (verdict.kind != RiskGate.Kind.NONE) macroUnsafe = true
                         if (verdict.kind != RiskGate.Kind.NONE && verdict.key !in approved) {
                             val answer = askUser(verdict.question)
                             if (answer == "CANCELLED") return@withContext end(TaskState.CANCELLED, "Task cancelled.")
@@ -343,6 +369,8 @@ class AgentTaskEngine(
                         }
                         if (!skip) {
                             val result = callTool(name, args)
+                            executed = name to JSONObject(args.toString())
+                            executedOk = !result.has("error") && result.optString("status") != "error"
                             payload.put("result", trimResult(result))
                             isUi = name in AgentToolCatalog.UI_TOOLS
                             if (name in AgentToolCatalog.TYPE_TOOLS) {
@@ -361,7 +389,10 @@ class AgentTaskEngine(
                 screenChanged = !sig.sameAs(lastSig)
                 val note = StringBuilder()
                 if (isUi) {
-                    if (screenChanged) noProgress = 0 else { noProgress++; note.append("NO_VISIBLE_EFFECT ") }
+                    if (screenChanged) noProgress = 0 else {
+                        noProgress++; note.append("NO_VISIBLE_EFFECT ")
+                        if (name !in AgentToolCatalog.SCROLL_TOOLS) AgentFailureLog.add(context, goal, name, "No visible change on screen after ${compactArgs(args)}")
+                    }
                     if (name in AgentToolCatalog.SCROLL_TOOLS && !screenChanged) { endOfList = true; note.append("END_OF_CONTENT ") }
                 } else if (name !in AgentToolCatalog.CONTROL_TOOLS && screenChanged) {
                     noProgress = 0
@@ -370,9 +401,21 @@ class AgentTaskEngine(
                 if (key == repeatKey && !screenChanged) repeatCount++ else { repeatKey = key; repeatCount = if (isUi && !screenChanged) 1 else 0 }
                 lastSig = sig
 
+                executed?.let { (n, a) ->
+                    when {
+                        isSecretLike(a) -> macroUnsafe = true
+                        n in AgentToolCatalog.CONTROL_TOOLS -> {}
+                        n !in MacroStore.REPLAY_SAFE_TOOLS -> macroUnsafe = true
+                        executedOk && screenChanged -> recorded.add(MacroStep(n, a))
+                        else -> {}
+                    }
+                    Unit
+                }
+
                 payload.put("screen_changed", screenChanged)
                 if (note.isNotEmpty()) payload.put("verification", note.toString().trim())
                 lastResult = payload.toString()
+                saveCheckpoint()
 
                 val responses = JSONArray()
                 responses.put(functionResponse(name, payload))
@@ -384,6 +427,10 @@ class AgentTaskEngine(
             }
 
             end(TaskState.FAILED, "I used all $maxSteps steps without finishing. ${progressText()}")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // service killed / coroutine cancelled: keep the checkpoint so the task can be resumed
+            state = TaskState.FAILED
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "[$taskId] engine crashed: ${e.message}", e)
             end(TaskState.FAILED, "The task failed: ${e.message}")
@@ -393,11 +440,90 @@ class AgentTaskEngine(
         }
     }
 
+    // ───────────────────────── resume / macros ─────────────────────────
+
+    /** Loads a saved checkpoint so [run] continues an interrupted task instead of starting from zero. */
+    fun restore(cp: TaskCheckpoint) {
+        resumeMode = true
+        notes.clear(); notes.putAll(cp.notes)
+        processed.clear(); processed.addAll(cp.processed)
+        actionLog.clear(); actionLog.addAll(cp.actionLog)
+    }
+
+    private fun saveCheckpoint() {
+        try {
+            TaskCheckpointStore.save(
+                context,
+                TaskCheckpoint(
+                    taskId, goal, plan.scope, plan.steps, plan.successCriteria, step,
+                    LinkedHashMap(notes), processed.toList(), actionLog.toList(), System.currentTimeMillis()
+                )
+            )
+        } catch (_: Exception) {}
+    }
+
+    /** Saves the screen-changing steps of a clean, successful run so the same request can be replayed later. */
+    private fun saveMacroIfEligible() {
+        try {
+            if (macroUnsafe || resumeMode || plan.scope != "single") return
+            val steps = recorded.toList()
+            if (steps.size !in 2..25) return
+            if (steps.first().tool != "open_app") return   // must be self-contained from any starting screen
+            MacroStore.save(context, goal, steps)
+            Log.i(TAG, "[$taskId] saved macro with ${steps.size} steps")
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Replays a saved routine step by step. Every step must visibly change the screen (one retry for slow apps).
+     * Returns the final summary when the routine finished the task, or null when the normal loop must take over
+     * from the current screen ([replayHint] then explains where the routine stopped).
+     */
+    private suspend fun tryReplayMacro(apiKey: String, macro: Macro): String? {
+        Log.i(TAG, "[$taskId] replaying macro (${macro.steps.size} steps) for \"${macro.goal}\"")
+        replayedSteps = 0
+        for ((i, st) in macro.steps.withIndex()) {
+            if (cancelled) return null
+            if (!waitWhilePaused()) return null
+            if (RiskGate.check(st.tool, st.args, appSettings.isAgentRiskConfirmEnabled).kind != RiskGate.Kind.NONE) {
+                replayHint = "A saved routine stopped before a risky step (${st.tool}). Continue carefully from the current screen."
+                return null
+            }
+            var ok = false
+            for (attempt in 0..1) {
+                val before = ScreenObserver.signature()
+                val res = callTool(st.tool, JSONObject(st.args.toString()))
+                val noError = !res.has("error") && res.optString("status") != "error"
+                val sig = ScreenObserver.waitForSettle()
+                if (noError && !sig.sameAs(before)) { ok = true; break }
+                if (attempt == 0) delay(1500)
+            }
+            actionLog.add("macro:${st.tool}".take(70))
+            if (!ok) {
+                MacroStore.recordFailure(context, macro.key)
+                replayHint = "A saved routine for this task stopped at step ${i + 1}/${macro.steps.size} (${st.tool}) because the screen did not respond as before. " +
+                    "Look at the CURRENT screen and continue with your own judgment; do not blindly redo earlier steps."
+                return null
+            }
+            replayedSteps++
+        }
+        val check = verifyCompletion(apiKey, "Replayed a saved routine for exactly this task")
+        if (check != null && !check.first) {
+            MacroStore.recordFailure(context, macro.key)
+            replayHint = "A saved routine ran but the result does not look right (${check.second}). Check the CURRENT screen and fix it."
+            return null
+        }
+        MacroStore.recordSuccess(context, macro.key)
+        return "Ho gaya Boss: ${plan.goal}"
+    }
+
     // ───────────────────────── helpers ─────────────────────────
 
     private fun end(s: TaskState, message: String): String {
         state = s
         pendingQuestion = null
+        TaskCheckpointStore.clear(context)   // ended on purpose -> nothing to resume
+        if (s == TaskState.FAILED) AgentFailureLog.add(context, goal, "task", message)
         Log.i(TAG, "[$taskId] ended: $s - $message")
         return message
     }
@@ -408,11 +534,17 @@ class AgentTaskEngine(
     private fun functionResponse(name: String, payload: JSONObject): JSONObject =
         JSONObject().put("functionResponse", JSONObject().put("name", name).put("response", JSONObject().put("output", payload)))
 
-    private fun callTool(name: String, args: JSONObject): JSONObject = try {
-        executor.execute(name, args)
-    } catch (e: Exception) {
-        Log.w(TAG, "tool $name failed: ${e.message}")
-        JSONObject().put("error", e.message ?: "tool failed")
+    private suspend fun callTool(name: String, args: JSONObject): JSONObject {
+        val r = try {
+            executor.executeSuspend(name, args)
+        } catch (e: Exception) {
+            Log.w(TAG, "tool $name failed: ${e.message}")
+            JSONObject().put("error", e.message ?: "tool failed")
+        }
+        if (r.has("error") || r.optString("status") == "error") {
+            AgentFailureLog.add(context, goal, name, r.optString("error", "tool reported an error"))
+        }
+        return r
     }
 
     private fun trimResult(r: JSONObject): JSONObject {
@@ -505,7 +637,7 @@ HOW YOU WORK
 - Every step you receive the CURRENT SCREEN (numbered elements with @(x,y) positions, plus visible text, plus a screenshot when needed) and whether your last action changed the screen.
 - Reply with exactly ONE tool call per step. Never describe, never chat: only tool calls.
 - Prefer a dedicated tool when one exists (open_app, whatsapp_send_message, send_sms, device_files, spotify_play, set_alarm, maps_navigate, open_settings ...). Use screen tapping/typing only for what no dedicated tool covers.
-- To tap, use smart_click with the visible label. If that fails, use tap_screen with the @(x,y) from the list.
+- To tap, use smart_click with the visible label. If that fails, use tap_screen with the @(x,y) from the list. If the screen has no usable elements (game, Flutter, canvas, image buttons), use tap_by_vision(description) - it looks at the screenshot and taps what you describe.
 - To type, use smart_type with the field label (set press_enter=true to submit a search). Check typed_text_visible_on_screen in the result; if false, click the field first and try again.
 - If you see NO_VISIBLE_EFFECT or the screen did not change, do NOT repeat the same action: pick a different element, scroll, dismiss_popup, or look_at_screen.
 - Content below the fold: use find_on_screen(text). END_OF_CONTENT means there is nothing more in that direction.

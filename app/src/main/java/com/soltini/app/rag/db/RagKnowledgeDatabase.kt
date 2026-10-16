@@ -23,7 +23,7 @@ class RagKnowledgeDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME
     companion object {
         private const val TAG = "RagKnowledgeDB"
         private const val DB_NAME = "myra_rag_knowledge.db"
-        private const val DB_VERSION = 2
+        private const val DB_VERSION = 3
 
         private const val TABLE_DOCS = "rag_documents"
         private const val TABLE_CHUNKS = "rag_chunks"
@@ -57,6 +57,7 @@ class RagKnowledgeDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME
                 mime_type TEXT,
                 category TEXT,
                 terms_json TEXT,
+                embedding BLOB,
                 FOREIGN KEY (document_uri) REFERENCES $TABLE_DOCS(uri) ON DELETE CASCADE
             )
             """.trimIndent()
@@ -76,6 +77,11 @@ class RagKnowledgeDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion == 2 && newVersion == 3) {
+            // keep the existing index; embeddings are filled in lazily
+            db.execSQL("ALTER TABLE $TABLE_CHUNKS ADD COLUMN embedding BLOB")
+            return
+        }
         db.execSQL("DROP TABLE IF EXISTS $TABLE_CHUNKS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_DOCS")
         onCreate(db)
@@ -182,23 +188,62 @@ class RagKnowledgeDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME
         return list
     }
 
+    /** Chunks that have no embedding yet: (id, text). */
+    fun chunksNeedingEmbedding(limit: Int): List<Pair<String, String>> {
+        val out = ArrayList<Pair<String, String>>()
+        try {
+            readableDatabase.rawQuery(
+                "SELECT id, text FROM $TABLE_CHUNKS WHERE embedding IS NULL LIMIT ?", arrayOf(limit.toString())
+            ).use { c -> while (c.moveToNext()) out.add(c.getString(0) to c.getString(1)) }
+        } catch (e: Exception) {
+            Log.w(TAG, "chunksNeedingEmbedding failed: ${e.message}")
+        }
+        return out
+    }
+
+    fun pendingEmbeddingCount(): Int = try {
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM $TABLE_CHUNKS WHERE embedding IS NULL", null)
+            .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    } catch (_: Exception) { 0 }
+
+    fun saveEmbeddings(vectors: Map<String, FloatArray>) {
+        if (vectors.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for ((id, v) in vectors) {
+                val cv = ContentValues().apply { put("embedding", com.soltini.app.rag.RagEmbedder.toBytes(v)) }
+                db.update(TABLE_CHUNKS, cv, "id = ?", arrayOf(id))
+            }
+            db.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.w(TAG, "saveEmbeddings failed: ${e.message}")
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /**
-     * Multi-document retrieval with hybrid lexical and semantic term scoring.
+     * Multi-document retrieval with hybrid scoring:
+     *  - keyword score (Unicode aware, so Hindi/Devanagari words work too), plus
+     *  - meaning score (cosine of embeddings) when [queryEmbedding] and stored chunk embeddings exist.
+     * Without embeddings it behaves as keyword search.
      */
     fun searchChunks(
         query: String,
         targetDocumentUri: String? = null,
         categoryFilter: String? = null,
         limit: Int = 8,
-        minScoreThreshold: Float = 0.20f
+        minScoreThreshold: Float = 0.20f,
+        queryEmbedding: FloatArray? = null
     ): List<RagSearchResult> {
         val db = readableDatabase
         val tokens = query.lowercase()
-            .split(Regex("[^a-z0-9_]+"))
-            .filter { it.length > 2 }
+            .split(Regex("[^\\p{L}\\p{N}_]+"))
+            .filter { it.length >= 3 || (it.length == 2 && it.any { ch -> ch.code > 0x2FF }) }
             .distinct()
 
-        if (tokens.isEmpty()) return emptyList()
+        if (tokens.isEmpty() && queryEmbedding == null) return emptyList()
 
         val results = mutableListOf<RagSearchResult>()
 
@@ -245,9 +290,20 @@ class RagKnowledgeDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME
                     matchScore += 0.50f
                 }
 
-                val finalScore = (matchScore / (tokens.size * 0.8f + 0.2f)).coerceIn(0f, 1.0f)
+                val lexScore = (matchScore / (tokens.size * 0.8f + 0.2f)).coerceIn(0f, 1.0f)
 
-                if (finalScore >= minScoreThreshold) {
+                // meaning score from embeddings (cosine of normalised vectors, usually 0.5-0.85 for related text)
+                var semNorm: Float? = null
+                if (queryEmbedding != null) {
+                    val embIdx = c.getColumnIndex("embedding")
+                    if (embIdx >= 0 && !c.isNull(embIdx)) {
+                        val cos = com.soltini.app.rag.RagEmbedder.dot(queryEmbedding, com.soltini.app.rag.RagEmbedder.fromBytes(c.getBlob(embIdx)))
+                        semNorm = ((cos - 0.55f) / 0.30f).coerceIn(0f, 1f)
+                    }
+                }
+                val finalScore = if (semNorm != null) (0.6f * semNorm + 0.4f * lexScore).coerceIn(0f, 1f) else lexScore
+
+                if (finalScore >= minScoreThreshold || (semNorm ?: 0f) >= 0.35f) {
                     // Generate highlight snippet
                     val snippet = generateSnippet(chunk.text, matchedTerms)
                     results.add(

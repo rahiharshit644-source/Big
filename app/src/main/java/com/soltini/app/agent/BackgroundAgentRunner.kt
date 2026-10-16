@@ -162,7 +162,7 @@ Your job is to execute the user's requested phone automation task cleanly, auton
                     Log.i(TAG, "Step $step: Tool call -> $name with args $args")
 
                     val execResult = try {
-                        agentToolExecutor.execute(name, args)
+                        agentToolExecutor.executeSuspend(name, args)
                     } catch (e: Exception) {
                         Log.e(TAG, "Tool execution exception for $name: ${e.message}", e)
                         JSONObject().apply { put("error", e.message ?: "Execution failed") }

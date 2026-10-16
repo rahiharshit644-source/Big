@@ -24,6 +24,41 @@ class WhatsAppAutomator(private val context: Context) {
     }
 
     /**
+     * Opens WhatsApp and the chat of [contactName], then returns the accessibility service when the chat
+     * (message box) is really open, or an error JSON. Every step waits for the UI instead of sleeping.
+     */
+    private fun openChat(svc: SoltiniAccessibilityService, contactName: String, needEditable: Boolean): JSONObject? {
+        if (!launchWhatsApp()) return error("WhatsApp not installed")
+        if (!UiWait.foreground(svc, WHATSAPP_PKG, 8000)) return error("WhatsApp did not come to the front")
+        UiWait.settle(1500)
+
+        // 1. Search icon
+        if (!UiWait.clickWhenReady(svc, "Search", 5000)) return error("Could not find WhatsApp search button")
+
+        // 2. Type the contact name once a search field accepts text
+        if (!UiWait.typeWhenReady(svc, contactName, 4000)) return error("Could not type in search field")
+        UiWait.settle(2000)   // let the result list render
+
+        // 3. Tap the contact
+        if (!UiWait.clickWhenReady(svc, contactName, 6000)) return error("Contact '$contactName' not found in search results")
+
+        // 4. Verify the CHAT opened (message box). If the tap hit the avatar, WhatsApp opens the contact-info
+        //    screen, which has no message box: back out and tap the row again once.
+        if (needEditable && !UiWait.editableReady(svc, 4000)) {
+            Log.w(TAG, "No message box after tapping '$contactName' - probably the profile screen. Backing out and retrying once.")
+            svc.pressBack()
+            UiWait.settle(1200)
+            if (!UiWait.clickWhenReady(svc, contactName, 4000)) return error("Contact '$contactName' select nahi ho paaya")
+            if (!UiWait.editableReady(svc, 4000)) {
+                return error("Chat screen open nahi hua - profile/info page khul gaya hai, message box nahi mila")
+            }
+        } else if (!needEditable) {
+            UiWait.settle(1500)
+        }
+        return null
+    }
+
+    /**
      * Sends a message to a contact by automating the UI.
      */
     fun sendMessage(contactName: String, message: String): JSONObject {
@@ -34,60 +69,21 @@ class WhatsAppAutomator(private val context: Context) {
         val svc = SoltiniAccessibilityService.getInstance()
             ?: return error("Accessibility Service not active")
 
-        if (!launchWhatsApp()) return error("WhatsApp not installed")
-        Thread.sleep(1500) // Wait for app to open
+        openChat(svc, contactName, needEditable = true)?.let { return it }
 
-        // 1. Click Search icon
-        if (!svc.clickByText("Search")) {
-            return error("Could not find WhatsApp search button")
-        }
-        Thread.sleep(500)
-
-        // 2. Type contact name
-        if (!svc.typeText(contactName)) {
-            return error("Could not type in search field")
-        }
-        Thread.sleep(1500) // Wait for search results
-
-        // 3. Click contact (we try to click the exact name, or something close)
-        if (!svc.clickByText(contactName)) {
-            return error("Contact '$contactName' not found in search results")
-        }
-        Thread.sleep(1000) // Wait for chat to open
-
-        // FIX: verify the chat screen actually opened before continuing. If the tap landed on
-        // the contact's avatar/DP instead of their name/row, WhatsApp opens the contact-info
-        // (profile) screen instead — which has no message box. Rather than blindly typing into
-        // whatever is on screen, check for an editable field first; if it's missing, this is
-        // almost certainly the profile screen, so back out and retry the contact tap once before
-        // giving up with a clear error (instead of the confusing downstream "could not type").
-        if (!svc.hasEditableField()) {
-            Log.w(TAG, "sendMessage: no message box found after tapping '$contactName' — likely opened profile/info screen instead of chat. Backing out and retrying once.")
-            svc.pressBack()
-            Thread.sleep(500)
-            if (!svc.clickByText(contactName)) {
-                return error("Contact '$contactName' select nahi ho paaya")
-            }
-            Thread.sleep(1000)
-            if (!svc.hasEditableField()) {
-                return error("Chat screen open nahi hua — profile/info page khul gaya hai, message box nahi mila")
-            }
-        }
-
-        // 4. Type message
-        if (!svc.typeText(message)) {
+        // 5. Type the message, then press Send as soon as the Send button exists
+        if (!UiWait.typeWhenReady(svc, message, 3000)) {
             return error("Could not type message in chat")
         }
-        Thread.sleep(500)
-
-        // 5. Click Send
-        if (!svc.clickByText("Send")) {
-            // Sometimes it's just an icon without text, we might need a coordinate fallback,
-            // but "Send" usually works as content description on the button.
+        if (!UiWait.clickWhenReady(svc, "Send", 3000)) {
             return error("Could not find Send button")
         }
 
-        return result("status", "message_sent", "contact", contactName)
+        // 6. Verify: the sent text should now be visible in the chat
+        val snippet = message.trim().take(20)
+        UiWait.settle(1200)
+        val verified = UiWait.textVisible(svc, snippet, 2500)
+        return result("status", "message_sent", "contact", contactName, "verified", verified.toString())
     }
 
     /**
@@ -101,37 +97,36 @@ class WhatsAppAutomator(private val context: Context) {
         val svc = SoltiniAccessibilityService.getInstance()
             ?: return error("Accessibility Service not active")
 
-        if (!launchWhatsApp()) return error("WhatsApp not installed")
-        Thread.sleep(1500)
+        // A call button lives inside the chat, so we do not require the message box here.
+        openChat(svc, contactName, needEditable = false)?.let { return it }
 
-        if (!svc.clickByText("Search")) return error("Could not find WhatsApp search button")
-        Thread.sleep(500)
-
-        if (!svc.typeText(contactName)) return error("Could not type in search field")
-        Thread.sleep(1500)
-
-        if (!svc.clickByText(contactName)) return error("Contact '$contactName' not found")
-        Thread.sleep(1000)
-
-        // FIX: same chat-vs-profile verification as sendMessage — a call button only exists
-        // inside the actual chat screen, not on some intermediate screen, so confirm we're
-        // somewhere sensible before hunting for the call button. (Chat screens for calling
-        // don't strictly need an editable field the way messaging does, so here we just retry
-        // the tap once if the very next click for the call button fails — see below.)
         val callButton = if (isVideo) "Video call" else "Voice call"
-        if (!svc.clickByText(callButton) && !svc.clickByText("Call")) {
-            // Retry once: the first tap may have landed on the contact's avatar (opening their
-            // profile/info screen) instead of the chat — back out and try the name/row again.
+        val labels = listOf(callButton, "Call")
+        if (!UiWait.clickAnyWhenReady(svc, labels, 4000)) {
+            // the tap may have landed on the avatar (profile screen): back out and try the row once more
             svc.pressBack()
-            Thread.sleep(500)
-            if (!svc.clickByText(contactName)) return error("Contact '$contactName' select nahi ho paaya")
-            Thread.sleep(1000)
-            if (!svc.clickByText(callButton) && !svc.clickByText("Call")) {
+            UiWait.settle(1200)
+            if (!UiWait.clickWhenReady(svc, contactName, 4000)) return error("Contact '$contactName' select nahi ho paaya")
+            UiWait.settle(1500)
+            if (!UiWait.clickAnyWhenReady(svc, labels, 4000)) {
                 return error("Could not find $callButton button in chat")
             }
         }
 
-        return result("status", "call_started", "contact", contactName, "video", isVideo.toString())
+        // Verify: the call screen shows "Calling" / "Ringing" / "Connecting" / an end-call control
+        val onCallScreen = UiWait.until(5000) {
+            val t = svc.readScreen().lowercase()
+            t.contains("calling") || t.contains("ringing") || t.contains("connecting") ||
+                t.contains("end call") || t.contains("end_call") || t.contains("call ended")
+        }
+        return if (onCallScreen) {
+            result("status", "call_started", "contact", contactName, "video", isVideo.toString(), "verified", "true")
+        } else {
+            result(
+                "status", "call_unverified", "contact", contactName, "video", isVideo.toString(),
+                "note", "Call button dabaya par call screen nahi dikhi - phone par check karein."
+            )
+        }
     }
 
     private fun launchWhatsApp(): Boolean {

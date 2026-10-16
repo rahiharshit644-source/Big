@@ -14,7 +14,7 @@ object AgentToolCatalog {
 
     /** Tools that should visibly change the screen when they work. */
     val UI_TOOLS = setOf(
-        "smart_click", "click_element", "tap_percent", "tap_screen", "swipe_direction", "swipe_screen",
+        "smart_click", "click_element", "tap_by_vision", "tap_percent", "tap_screen", "swipe_direction", "swipe_screen",
         "scroll_down", "scroll_up", "press_back", "press_home", "press_recents", "open_app", "press_enter",
         "toggle_checkbox", "select_dropdown", "open_settings", "open_notifications", "open_quick_settings",
         "youtube_open_video", "youtube_search", "maps_navigate", "open_url", "open_urls", "install_app"
@@ -69,6 +69,8 @@ object AgentToolCatalog {
         put(d("smart_type", "Type into an input field found by its label/hint (or the focused field). Set press_enter to submit searches.",
             p("text", "STRING", "Text to type"), p("field", "STRING", "Field label or hint"), p("clear_first", "BOOLEAN", "Clear old text first"),
             p("press_enter", "BOOLEAN", "Press Enter/Search after typing"), required = listOf("text")))
+        put(d("tap_by_vision", "Tap something you can SEE but is not in the element list (game, Flutter/canvas app, icon-only or image button). Describe it in words (colour, icon, position, nearby text).",
+            p("description", "STRING", "What to tap, e.g. 'the red play button at the bottom right'"), required = listOf("description")))
         put(d("press_enter", "Press Enter / Search on the keyboard."))
         put(d("hide_keyboard", "Close the on-screen keyboard."))
         put(d("swipe_direction", "Swipe/scroll: UP, DOWN, LEFT or RIGHT.", p("direction", "STRING", "UP, DOWN, LEFT or RIGHT"), p("distance_percent", "NUMBER", "0.1-0.9"), required = listOf("direction")))

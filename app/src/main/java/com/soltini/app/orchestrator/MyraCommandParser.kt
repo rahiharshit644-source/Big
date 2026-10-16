@@ -43,18 +43,22 @@ sealed class ParsedAction {
     data class WebSearch(
         val cleanQuery: String,
         val originalQuery: String,
-        val destination: AppDestination = AppDestination.INTERNAL_BROWSER
+        val destination: AppDestination = AppDestination.CHROME_APP
     ) : ParsedAction()
 
     data class YouTubePlay(
         val cleanQuery: String,
         val isSong: Boolean,
-        val destination: AppDestination = AppDestination.INTERNAL_BROWSER
+        val destination: AppDestination = AppDestination.YOUTUBE_APP
     ) : ParsedAction()
 
     data class YouTubeSearch(
         val cleanQuery: String,
-        val destination: AppDestination = AppDestination.INTERNAL_BROWSER
+        val destination: AppDestination = AppDestination.YOUTUBE_APP
+    ) : ParsedAction()
+
+    data class SpotifyPlay(
+        val query: String
     ) : ParsedAction()
 
     data class MediaControl(
@@ -64,7 +68,7 @@ sealed class ParsedAction {
 
     data class OpenWebUrl(
         val url: String,
-        val destination: AppDestination = AppDestination.INTERNAL_BROWSER
+        val destination: AppDestination = AppDestination.CHROME_APP
     ) : ParsedAction()
 
     data class SendMessage(
@@ -148,6 +152,9 @@ object MyraCommandParser {
 
         // 5. Messaging & SMS
         parseSendMessage(trimmed)?.let { return it }
+
+        // 6a. Spotify ("Spotify par Tum Hi Ho chalao") - must come BEFORE YouTube / generic music parsing
+        parseSpotify(trimmed)?.let { return it }
 
         // 6. YouTube Control
         parseYouTube(trimmed)?.let { return it }
@@ -459,6 +466,39 @@ object MyraCommandParser {
     }
 
     /**
+     * Parses "Spotify par <song> chalao" style commands.
+     * Returns null for bare "spotify kholo" (no song) so the generic app opener handles it.
+     */
+    fun parseSpotify(input: String): ParsedAction.SpotifyPlay? {
+        val text = input.trim()
+        val lower = text.lowercase()
+        if (!DestinationResolver.isExplicitSpotify(lower)) return null
+
+        val mentionsPlay = lower.contains("chalao") || lower.contains("chala do") ||
+                lower.contains("bajao") || lower.contains("baja do") || lower.contains("play") ||
+                lower.contains("sunao") || lower.contains("suna do") || lower.contains("laga") ||
+                lower.contains("lagao") || lower.contains("search")
+        if (!mentionsPlay) return null
+
+        var q = text
+        var prev: String
+        do {
+            prev = q
+            q = q.replace(Regex("""^(?:hey\s+myra|myra|soltini|please|kripya)\s*,?\s*""", RegexOption.IGNORE_CASE), "")
+            q = q.replace(Regex("""^(?:spotify\s*(?:app)?\s*(?:par|pe|me|mein|pr|ke\s+through|se)?)\s*""", RegexOption.IGNORE_CASE), "")
+            q = q.replace(Regex("""^(?:play|search|chalao|bajao|sunao|lagao|laga\s+do|open|kholo)\b\s*""", RegexOption.IGNORE_CASE), "")
+            q = q.replace(Regex("""\s+(?:chalao|chala\s+do|bajao|baja\s+do|sunao|suna\s+do|lagao|laga\s+do|play\s+karo|play|search\s+karo|search)$""", RegexOption.IGNORE_CASE), "")
+            q = q.replace(Regex("""\s+(?:spotify\s*(?:app)?\s*(?:par|pe|me|mein|pr)?)$""", RegexOption.IGNORE_CASE), "")
+            q = q.trim()
+        } while (q != prev && q.isNotBlank())
+        q = q.replace(Regex("""\s+(?:ka\s+gaana|ke\s+gaane|ka\s+song|ke\s+songs|song|songs|gaana|gaane)$""", RegexOption.IGNORE_CASE), "").trim()
+
+        if (q.isBlank()) return null
+        logD(TAG, "Parsed SpotifyPlay: Query='$q'")
+        return ParsedAction.SpotifyPlay(q)
+    }
+
+    /**
      * Parses YouTube commands into either playback or search with clean queries.
      */
     fun parseYouTube(input: String): ParsedAction? {
@@ -490,7 +530,7 @@ object MyraCommandParser {
             cleanQuery = if (isSong) "trending songs" else "trending videos"
         }
 
-        val destination = DestinationResolver.resolve(text)
+        val destination = DestinationResolver.resolveMedia(text)
 
         return if (isSearch) {
             logD(TAG, "Parsed YouTubeSearch: Query='$cleanQuery', destination=$destination")
@@ -532,7 +572,7 @@ object MyraCommandParser {
         val cleanQuery = cleanWebSearchQuery(text)
         val finalQuery = cleanQuery.ifBlank { "Google" }
 
-        val destination = DestinationResolver.resolve(text)
+        val destination = DestinationResolver.resolveWeb(text)
         logD(TAG, "Parsed WebSearch: Query='$finalQuery' from '$text', destination=$destination")
         return ParsedAction.WebSearch(cleanQuery = finalQuery, originalQuery = text, destination = destination)
     }
@@ -618,7 +658,7 @@ object MyraCommandParser {
 
         if (!isWebsiteCommand) return null
 
-        val destination = DestinationResolver.resolve(input)
+        val destination = DestinationResolver.resolveWeb(input)
         val extractedUrl = extractUrl(input)
         if (extractedUrl.isBlank()) return null
 

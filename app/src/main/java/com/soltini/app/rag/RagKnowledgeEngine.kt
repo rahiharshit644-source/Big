@@ -10,6 +10,7 @@ import com.soltini.app.settings.AppSettings
 import com.soltini.app.storage.SafStorageManager
 import com.soltini.app.storage.StorageItemInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -52,6 +53,9 @@ class RagKnowledgeEngine private constructor(
     }
 
     val db = RagKnowledgeDatabase(context)
+    val embedder = RagEmbedder(appSettings)
+    private val bgScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val embedMutex = kotlinx.coroutines.sync.Mutex()
     val splitter = RecursiveDocumentSplitter(maxSegmentSizeInChars = 800, maxOverlapSizeInChars = 140)
 
     val imageVisionParser = ImageVisionParser(appSettings)
@@ -106,6 +110,7 @@ class RagKnowledgeEngine private constructor(
             val chunks = splitter.split(doc)
             db.saveDocumentWithChunks(doc, chunks)
             Log.i(TAG, "Indexed '${item.name}': ${chunks.size} chunks generated.")
+            embedInBackground(100)
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed indexing '${item.name}': ${e.message}")
@@ -135,20 +140,62 @@ class RagKnowledgeEngine private constructor(
         // Prune any deleted or inaccessible files
         purgeInaccessibleFiles(storageManager)
 
+        // Meaning-search: embed the new chunks in the background
+        embedInBackground(400)
+
         val stats = db.getStats()
         totalChunks = stats.totalChunks
         Pair(indexedDocs, totalChunks)
     }
 
     /**
-     * Multi-document search across authorized knowledge base.
+     * Creates embeddings for chunks that do not have one yet (at most [maxChunks] per call).
+     * Safe to call often: only one run happens at a time, and it stops quietly when offline / out of quota.
+     * Returns how many chunks were embedded.
+     */
+    suspend fun embedPending(maxChunks: Int = 300): Int = withContext(Dispatchers.IO) {
+        if (!embedder.isEnabled()) return@withContext 0
+        if (!embedMutex.tryLock()) return@withContext 0
+        var done = 0
+        try {
+            while (done < maxChunks) {
+                val pending = db.chunksNeedingEmbedding(50)
+                if (pending.isEmpty()) break
+                val vectors = embedder.embedDocuments(pending.map { it.second })
+                val ok = HashMap<String, FloatArray>()
+                pending.forEachIndexed { i, p -> vectors.getOrNull(i)?.let { ok[p.first] = it } }
+                if (ok.isEmpty()) break          // offline / quota: try again later
+                db.saveEmbeddings(ok)
+                done += ok.size
+                if (ok.size < pending.size) break
+            }
+            if (done > 0) Log.i(TAG, "Embedded $done chunks")
+        } catch (e: Exception) {
+            Log.w(TAG, "embedPending failed: ${e.message}")
+        } finally {
+            embedMutex.unlock()
+        }
+        done
+    }
+
+    /** Fire-and-forget embedding of whatever is still missing (never blocks a search). */
+    fun embedInBackground(maxChunks: Int = 150) {
+        if (!embedder.isEnabled()) return
+        bgScope.launch { embedPending(maxChunks) }
+    }
+
+    /**
+     * Multi-document search across authorized knowledge base (keyword + meaning when embeddings exist).
      */
     suspend fun searchKnowledge(
         query: String,
         categoryFilter: String? = null,
         limit: Int = 6
     ): List<RagSearchResult> = withContext(Dispatchers.IO) {
-        db.searchChunks(query = query, categoryFilter = categoryFilter, limit = limit)
+        val qv = try { embedder.embedQuery(query) } catch (_: Exception) { null }
+        val hits = db.searchChunks(query = query, categoryFilter = categoryFilter, limit = limit, queryEmbedding = qv)
+        if (db.pendingEmbeddingCount() > 0) embedInBackground()
+        hits
     }
 
     /**
@@ -159,7 +206,8 @@ class RagKnowledgeEngine private constructor(
         query: String,
         limit: Int = 5
     ): List<RagSearchResult> = withContext(Dispatchers.IO) {
-        db.searchChunks(query = query, targetDocumentUri = documentUri, limit = limit)
+        val qv = try { embedder.embedQuery(query) } catch (_: Exception) { null }
+        db.searchChunks(query = query, targetDocumentUri = documentUri, limit = limit, queryEmbedding = qv)
     }
 
     /**

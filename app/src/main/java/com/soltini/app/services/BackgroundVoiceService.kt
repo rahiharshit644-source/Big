@@ -129,6 +129,13 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
     @Volatile private var silentTurn = false
     private lateinit var audioRecorder: AudioRecorder
     private lateinit var geminiLiveManager: GeminiLiveManager
+
+    // Strict voice focus: mic audio only reaches Gemini when the speaker is Boss (see VoiceGate).
+    @Volatile private var voiceGate: com.soltini.app.voiceprint.gate.VoiceGate? = null
+    private var lastGateSync = 0L
+    private var lastGateReload = 0L
+    // Requests Boss gave while a task was still running; run after it finishes (never dropped).
+    private val pendingAutomationRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
     private lateinit var agentToolExecutor: AgentToolExecutor
     private val browserUseClient: BrowserUseClient by lazy { BrowserUseClient(this) }
     private lateinit var backgroundAgentRunner: com.soltini.app.agent.BackgroundAgentRunner
@@ -184,6 +191,18 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
 
     override fun onCreate() {
         super.onCreate()
+        // Unfinished task list from before a crash / phone lock? Remind the user (never auto-runs phone actions).
+        try {
+            com.soltini.app.agent.TaskQueueStore(this).unfinishedSummary(6L * 60 * 60 * 1000)?.let {
+                com.soltini.app.agent.TaskQueueNotifier.notifyUnfinished(this, it)
+            }
+        } catch (_: Exception) {}
+        // A single task that was cut off mid-way (service killed)? Remind Boss; resume_task continues it.
+        try {
+            com.soltini.app.agent.TaskCheckpointStore.summary(this)?.let {
+                com.soltini.app.agent.TaskQueueNotifier.notifyUnfinished(this, it)
+            }
+        } catch (_: Exception) {}
         instance = this
         Log.i(TAG, "BackgroundVoiceService created")
 
@@ -303,7 +322,22 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
         audioRecorder = AudioRecorder(
             onAudioChunkCaptured = { pcmChunk ->
                 if (!_isSleeping.value) {
-                    geminiLiveManager.sendAudioChunk(pcmChunk)
+                    val gate = voiceGate
+                    if (gate != null) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastGateSync > 2000) {
+                            lastGateSync = now
+                            gate.mode = com.soltini.app.voiceprint.gate.VoiceGateMode.fromString(appSettings.voiceGateMode)
+                            gate.verifier.sensitivityOffset = appSettings.voiceprintSensitivityOffset
+                            if (!gate.verifier.isReady && now - lastGateReload > 10_000) {
+                                lastGateReload = now
+                                serviceScope.launch { gate.verifier.reloadProfile() }
+                            }
+                        }
+                        gate.onAudioChunkCaptured(pcmChunk)
+                    } else {
+                        geminiLiveManager.sendAudioChunk(pcmChunk)
+                    }
                 }
             },
             onSpeechStateChanged = {
@@ -325,6 +359,24 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
             pluginRegistry = pluginRegistry
         )
 
+        // Voice-ID gate. If the speaker model / enrolled profile is missing the gate fails open (never mutes Myra).
+        try {
+            val vpVerifier = com.soltini.app.voiceprint.domain.VoiceprintVerifier(
+                com.soltini.app.voiceprint.ml.OnnxSpeakerEmbedder(this),
+                com.soltini.app.voiceprint.data.VoiceprintRepository.getInstance(this)
+            )
+            vpVerifier.sensitivityOffset = appSettings.voiceprintSensitivityOffset
+            voiceGate = com.soltini.app.voiceprint.gate.VoiceGate(vpVerifier) { bytes ->
+                geminiLiveManager.sendAudioChunk(bytes)
+            }.apply {
+                mode = com.soltini.app.voiceprint.gate.VoiceGateMode.fromString(appSettings.voiceGateMode)
+            }
+            serviceScope.launch { vpVerifier.reloadProfile() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Voice gate unavailable, using direct mic: ${e.message}")
+            voiceGate = null
+        }
+
         backgroundAgentRunner = com.soltini.app.agent.BackgroundAgentRunner(this, agentToolExecutor, appSettings)
         agentPhoneController = com.soltini.app.agent.AgentPhoneController(this, agentToolExecutor, agentToolExecutor.screenOperator, appSettings)
         deviceController = DeviceController.create(this)
@@ -336,7 +388,8 @@ class BackgroundVoiceService : Service(), GeminiLiveListener, ToolCallListener {
 
         // Screen Companion Hook: When proactive insight is triggered, deliver to Gemini Live session
         com.soltini.app.companion.ScreenCompanionManager.getInstance(this).onProactiveInsightReady = { insightPrompt ->
-            if (!_isSleeping.value && geminiLiveManager.connectionState.value == ConnectionState.Live) {
+            if (!_isSleeping.value && geminiLiveManager.connectionState.value == ConnectionState.Live &&
+                !com.soltini.app.agent.AgentTaskRegistry.isBusy() && activeToolCallCount.get() == 0) {
                 geminiLiveManager.sendClientContent(insightPrompt)
             }
         }
@@ -435,6 +488,7 @@ Speak now immediately!"""
         serviceScope.launch {
             isSpeaking.collect { isSpeaking ->
                 audioRecorder.isModelSpeaking = isSpeaking
+                voiceGate?.isModelSpeaking = isSpeaking
                 if (isSpeaking) {
                     lastSpeechTimestamp = System.currentTimeMillis()
                 }
@@ -891,6 +945,7 @@ Speak now immediately!"""
      */
     fun wakeUp() {
         Log.i(TAG, "Soltini waking up from sleep")
+        voiceGate?.openWindow(8000L)   // Boss just said the wake word: let the first short command through
         stopWakeListening()
         _isSleeping.value = false
         lastSpeechTimestamp = System.currentTimeMillis()
@@ -1366,12 +1421,12 @@ Speak now immediately!"""
             val query = args.optString("query", args.optString("song", args.optString("title", "")))
             val cleanQuery = com.soltini.app.orchestrator.MyraCommandParser.cleanYouTubeQuery(query).ifBlank { query.trim() }
             val destinationArg = args.optString("destination", args.optString("target", ""))
-            val useApp = com.soltini.app.orchestrator.DestinationResolver.wantsYouTubeApp(query, destinationArg)
+            val useApp = !com.soltini.app.orchestrator.DestinationResolver.wantsInternalBrowser(query, destinationArg)
             serviceScope.launch {
                 var ok: Boolean
                 var message: String
                 if (useApp) {
-                    // Explicit "YouTube app" request only. NOTE: the YouTube app stops when minimized.
+                    // DEFAULT: real YouTube app. (Internal Browser is used only when explicitly requested.)
                     val playRes = kotlinx.coroutines.withContext(Dispatchers.IO) {
                         com.soltini.app.agent.YouTubeAutomator(applicationContext).playSong(cleanQuery)
                     }
@@ -1379,8 +1434,7 @@ Speak now immediately!"""
                             playRes.optString("status") == "playing_video"
                     message = playRes.optString("message", "Playing on YouTube app")
                 } else {
-                    // DEFAULT: Internal Browser + foreground media service = keeps playing when
-                    // the app is minimized or the screen is locked.
+                    // Explicit "internal browser" request only: Internal Browser + foreground media service.
                     try {
                         com.soltini.app.browser.BrowserController.getInstance(applicationContext).playMediaOnYouTube(cleanQuery)
                         ok = true
@@ -1450,12 +1504,12 @@ Speak now immediately!"""
             val busyMgr = com.soltini.app.messaging.BusyModeManager.getInstance(applicationContext)
             val responseMsg = if (enable) {
                 val sanitized = busyMgr.enableBusyMode(reason)
-                "Ji Boss, Busy mode activate ho gaya hai ($sanitized). Ab WhatsApp, Instagram, Telegram, SMS ke messages ka polite auto-reply main khud handle karungi."
+                "Ji Boss, Busy mode activate ho gaya hai ($sanitized). Ab main messages padhkar reply draft karungi, par aapki confirmation ke bina kuch nahi bhejungi aur groups me kabhi reply nahi karungi."
             } else {
                 val summary = busyMgr.disableBusyMode()
                 if (summary.totalRepliedCount > 0) {
                     val contacts = summary.uniqueSenders.joinToString(", ")
-                    "Ji Boss, welcome back! Busy mode off kar diya gaya hai. Is session me maine kul ${summary.totalRepliedCount} messages ka reply kiya ($contacts)."
+                    "Ji Boss, welcome back! Busy mode off kar diya gaya hai. Is session me aapki confirmation se ${summary.totalRepliedCount} replies gaye ($contacts)."
                 } else {
                     "Ji Boss, Busy mode deactivate kar diya gaya hai. Is dauran koi naya message nahi aaya tha."
                 }
@@ -1498,6 +1552,14 @@ Speak now immediately!"""
 
         if (toolName == "trigger_automation") {
             val request = args.optString("request", "")
+            if (com.soltini.app.agent.AgentTaskRegistry.isBusy() || activeToolCallCount.get() > 0) {
+                if (request.isNotBlank() && !pendingAutomationRequests.contains(request)) pendingAutomationRequests.add(request)
+                geminiLiveManager.sendToolResponse(callId, toolName, JSONObject().apply {
+                    put("status", "busy")
+                    put("message", "A task is already running. Do NOT start another one and do NOT drop the current one. Tell Boss in one short line that the current task is still in progress and that you saved the new request \"$request\" to do right after it. If Boss wants to stop the current task instead, use cancel_task.")
+                })
+                return
+            }
             Log.i(TAG, "Triggering MYRA Orchestrator for request: \"$request\"")
             appendUserMessage(request)
 
@@ -1529,6 +1591,13 @@ Speak now immediately!"""
                     geminiLiveManager.sendClientContent(
                         "[SYSTEM NOTIFICATION: Task completed for: \"$request\". Outcome: ${orchestratorResult.responseText}. Tools used: ${orchestratorResult.toolSequenceUsed.joinToString(", ")}. Speak directly to Boss in Hindi/Hinglish to share the outcome!]"
                     )
+                    if (pendingAutomationRequests.isNotEmpty()) {
+                        val queued = pendingAutomationRequests.toList()
+                        pendingAutomationRequests.clear()
+                        geminiLiveManager.sendClientContent(
+                            "[PENDING TASKS: Boss ne ye kaam pichle task ke dauraan bole the: ${queued.joinToString(" | ")}. Ab inhe ek-ek karke order me trigger_automation se chalao, koi bhoolna nahi.]"
+                        )
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "MYRA Orchestrator failed: ${e.message}", e)
                     appendAgentMessage("Task failed: ${e.message}")
@@ -1642,7 +1711,7 @@ Speak now immediately!"""
             }
 
             try {
-                val result = agentToolExecutor.execute(toolName, args)
+                val result = agentToolExecutor.executeSuspend(toolName, args)
                 geminiLiveManager.sendToolResponse(callId, toolName, result)
                 memory2Engine.session.recordToolResult(toolName, result.optString("message", "Executed $toolName"))
             } finally {
@@ -1802,6 +1871,8 @@ Speak now immediately!"""
 
     override fun onDestroy() {
         super.onDestroy()
+        try { voiceGate?.release() } catch (_: Exception) {}
+        voiceGate = null
         if (instance == this) {
             instance = null
         }

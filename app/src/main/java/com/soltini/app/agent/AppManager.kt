@@ -359,7 +359,8 @@ class AppManager(private val context: Context) {
                 "message", "Google Play is open. Accessibility is off, so please tap Install yourself."
             )
 
-        try { Thread.sleep(1800) } catch (_: InterruptedException) {}
+        UiWait.foreground(svc, "com.android.vending", 6000)
+        UiWait.settle(2500)
 
         // Search results: open the best matching result first (details page).
         if (pkg == null) {
@@ -370,7 +371,7 @@ class AppManager(private val context: Context) {
                     "message", "Search for '$query' is open on Google Play but I could not pick a result. Ask the user which app, or use smart_click."
                 )
             }
-            try { Thread.sleep(1800) } catch (_: InterruptedException) {}
+            UiWait.settle(2500)
             // Safety: confirm we really landed on the app the user asked for.
             val firstToken = query.lowercase(Locale.ROOT).split(" ").firstOrNull { it.length >= 3 } ?: query.lowercase(Locale.ROOT)
             val onRightPage = waitUntil(6_000) { svc.readScreen().lowercase(Locale.ROOT).contains(firstToken) }

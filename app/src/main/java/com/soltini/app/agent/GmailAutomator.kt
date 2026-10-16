@@ -83,10 +83,23 @@ class GmailAutomator(private val context: Context) {
                     "note", "Accessibility Service not active, could not auto-send. Draft is open — please tap Send."
                 )
 
-            Thread.sleep(1200) // let Gmail's compose screen finish rendering
-            val sent = svc.clickByText("Send")
+            // wait for the compose screen (Gmail package + a text box) instead of a blind 1.2 s sleep
+            UiWait.editableReady(svc, 5000)
+            UiWait.settle(1200)
+            val sent = UiWait.clickWhenReady(svc, "Send", 4000)
             return if (sent) {
-                result("status", "sent", "to", to, "subject", subject)
+                // Verify: after a real send Gmail closes the compose screen (no text box / Gmail no longer in front)
+                val closed = UiWait.until(4000) {
+                    !svc.hasEditableField() || ScreenObserver.foregroundPackage() != GMAIL_PKG
+                }
+                if (closed) {
+                    result("status", "sent", "to", to, "subject", subject, "verified", "true")
+                } else {
+                    result(
+                        "status", "sent_unverified", "to", to, "subject", subject,
+                        "note", "Send dabaya par compose screen abhi bhi khula hai - Gmail me check kar lein ki mail gaya ya nahi."
+                    )
+                }
             } else {
                 result(
                     "status", "draft_ready",

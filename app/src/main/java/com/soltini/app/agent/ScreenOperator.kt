@@ -399,7 +399,8 @@ class ScreenOperator(private val context: Context) {
                 editableNode.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
 
                 val textToSet = if (clearFirst) textToType else {
-                    val current = editableNode.text?.toString() ?: ""
+                    // readFieldText ignores placeholder/hint text, so a hint is never appended to
+                    val current = svc.readFieldText(editableNode)
                     if (current.isBlank()) textToType else "$current $textToType"
                 }
 
@@ -419,12 +420,17 @@ class ScreenOperator(private val context: Context) {
                     svc.pressImeEnter(editableNode)
                 }
 
+                val fieldNow = if (success) svc.readFieldText(editableNode) else ""
+                val landed = success && (fieldNow == "(hidden)" ||
+                    fieldNow.contains(textToType.trim(), ignoreCase = true))
                 editableNode.recycle()
 
                 if (success) {
                     JSONObject().apply {
-                        put("status", "success")
+                        put("status", if (landed) "success" else "typed_unverified")
                         put("action", "typed")
+                        put("verified", landed)
+                        if (!landed) put("note", "Text could not be confirmed in the field. Check the screen and retype before saying it is done.")
                         put("text", textToType)
                         if (!targetField.isNullOrBlank()) put("field", targetField)
                         if (pressEnterAfter) put("submitted", true)
@@ -908,11 +914,7 @@ class ScreenOperator(private val context: Context) {
     }
 
     private fun safeSleep(ms: Long) {
-        try {
-            Thread.sleep(ms)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
+        UiWait.pause(ms)
     }
 
     private fun errorResult(msg: String): JSONObject = JSONObject().apply {

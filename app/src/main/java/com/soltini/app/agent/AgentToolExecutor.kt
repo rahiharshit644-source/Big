@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.PowerManager
 import android.util.Log
 import org.json.JSONArray
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
@@ -57,6 +58,7 @@ class AgentToolExecutor(private val context: Context) {
     }
 
     private val youtubeAutomator = YouTubeAutomator(context)
+    private val visionTapper = VisionTapper(context)
     private val whatsappAutomator = WhatsAppAutomator(context)
     private val appManager = AppManager(context)
     private val fileManager = DeviceFileManager(context)
@@ -78,8 +80,34 @@ class AgentToolExecutor(private val context: Context) {
      * Main dispatch function. Returns a JSONObject result sent back to Gemini
      * as a toolResponse so it can verbally confirm what happened.
      */
+    /**
+     * Suspend entry point for callers that already run in a coroutine. It moves the (blocking) tool work to
+     * the IO dispatcher so the caller's own thread is never tied up.
+     */
+    suspend fun executeSuspend(toolName: String, args: JSONObject): JSONObject =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { execute(toolName, args) }
+
+    /**
+     * The ONLY place in this class where blocking tool code bridges into coroutines (replaces 13 raw
+     * `runBlocking` calls). It always runs on the IO dispatcher and always has a timeout, so a stuck network
+     * call or screen capture can no longer hang a task forever.
+     */
+    private fun <T> blocking(timeoutMs: Long = 45_000L, block: suspend () -> T): T {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            Log.w(TAG, "A blocking tool is being run on the MAIN thread - callers should use executeSuspend()")
+        }
+        return kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.withTimeout(timeoutMs) { block() }
+        }
+    }
+
     fun execute(toolName: String, args: JSONObject): JSONObject {
-        val result = executeInternal(toolName, args)
+        val result = try {
+            executeInternal(toolName, args)
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.w(TAG, "Tool $toolName timed out")
+            JSONObject().put("status", "error").put("error", "Tool '$toolName' timed out. Try again.")
+        }
         // Phase 4: learn favourites / routines from what actually worked (never throws)
         com.soltini.app.learning.HabitTracker.record(context, toolName, args, result)
         return result
@@ -120,7 +148,27 @@ class AgentToolExecutor(private val context: Context) {
             "task_status"   -> AgentTaskRegistry.status()
             "cancel_task"   -> AgentTaskRegistry.cancel()
             "pause_task"    -> AgentTaskRegistry.pause()
-            "resume_task"   -> AgentTaskRegistry.resume()
+            "resume_task"   -> {
+                val r = AgentTaskRegistry.resume()
+                if (r.optString("status") == "no_task" && !TaskQueueRegistry.isActive() && TaskQueueStore(context).hasUnfinished()) {
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        TaskQueueRunner(context, this@AgentToolExecutor, com.soltini.app.settings.AppSettings(context)).resume()
+                    }
+                    JSONObject().put("status", "resuming_task_list").put("message", "Adhure kaam dobara shuru kar rahi hu.")
+                } else if (r.optString("status") == "no_task" && !TaskQueueRegistry.isActive() && TaskCheckpointStore.load(context) != null) {
+                    val cp = TaskCheckpointStore.load(context)!!
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        val engine = AgentTaskEngine(context, this@AgentToolExecutor, com.soltini.app.settings.AppSettings(context))
+                        engine.restore(cp)
+                        val resumeGoal = cp.goal + "\n[RESUME: this task was interrupted. Steps already done: " +
+                            (if (cp.actionLog.isEmpty()) "none" else cp.actionLog.takeLast(8).joinToString(" -> ")) +
+                            ". Look at the CURRENT screen, continue from where it stopped and do not redo finished steps.]"
+                        val msg = engine.run(resumeGoal) { AgentStatusBus.emit(it) }
+                        AgentStatusBus.emit("[AGENT TASK FINISHED] $msg Tell Boss the outcome briefly in Hinglish.")
+                    }
+                    JSONObject().put("status", "resuming_interrupted_task").put("message", "Adhura kaam: \"${cp.goal.take(60)}\" wahin se dobara shuru kar rahi hu.")
+                } else r
+            }
             "task_reply"    -> AgentTaskRegistry.reply(args.optString("answer", args.optString("reply", "")))
             "read_otp"      -> readOtp()
             "spotify_play"  -> SpotifyAutomator(context).play(args.optString("query", args.optString("song", "")))
@@ -135,16 +183,21 @@ class AgentToolExecutor(private val context: Context) {
             )
             "search_google", "google_search", "chrome_search" -> {
                 val query = args.optString("query", args.optString("q", args.optString("search", args.optString("text", ""))))
-                val forceChrome = toolName == "chrome_search" || args.optBoolean("force_chrome", false)
-                searchGoogle(rawQuery = query, forceChrome = forceChrome)
+                val wantsInternal = args.optBoolean("use_internal_browser", false) ||
+                        com.soltini.app.orchestrator.DestinationResolver.wantsInternalBrowser(query, args.optString("destination", ""))
+                searchGoogle(rawQuery = query, forceChrome = !wantsInternal)
             }
-            "open_url", "browse_url" -> openUrl(args.optString("url", args.optString("link", "")), forceChrome = args.optBoolean("force_chrome", false))
+            "open_url", "browse_url" -> {
+                val wantsInternal = args.optBoolean("use_internal_browser", false) ||
+                        com.soltini.app.orchestrator.DestinationResolver.wantsInternalBrowser("", args.optString("destination", ""))
+                openUrl(args.optString("url", args.optString("link", "")), forceChrome = !wantsInternal)
+            }
             "browser_action" -> {
                 val action = args.optString("action", "snapshot")
                 val ref = args.optString("ref", "")
                 val text = args.optString("text", "")
                 val url = args.optString("url", "")
-                val resultText = kotlinx.coroutines.runBlocking {
+                val resultText = blocking {
                     val controller = com.soltini.app.browser.BrowserController.getInstance(context)
                     controller.executeAction(action, ref, text, url)
                 }
@@ -193,10 +246,21 @@ class AgentToolExecutor(private val context: Context) {
             // ── Screen Automation & Semantic Operator ─────────────────────
             "read_screen", "observe_screen" -> observeScreen()
             "inspect_screen" -> screenOperator.inspectScreen()
-            "smart_click", "click_element" -> screenOperator.clickElement(
-                target = args.optString("target", args.optString("text", args.optString("label", ""))),
-                autoScroll = args.optBoolean("auto_scroll", true)
-            )
+            "smart_click", "click_element" -> {
+                val clickTarget = args.optString("target", args.optString("text", args.optString("label", "")))
+                val r = screenOperator.clickElement(
+                    target = clickTarget,
+                    autoScroll = args.optBoolean("auto_scroll", true)
+                )
+                // Accessibility could not find it -> try to SEE it (vision fallback)
+                if (clickTarget.isNotBlank() && (r.has("error") || r.optString("status") == "error")) {
+                    val v = try { blocking(30_000L) { visionTapper.tap(clickTarget) } } catch (_: Exception) { null }
+                    if (v != null && v.optString("status") == "success") v else r
+                } else r
+            }
+            "tap_by_vision", "vision_tap", "tap_on_image" -> blocking(30_000L) {
+                visionTapper.tap(args.optString("description", args.optString("target", args.optString("text", ""))))
+            }
             "smart_type"    -> screenOperator.typeIntoField(
                 targetField = args.optString("field", args.optString("target", "")).takeIf { it.isNotBlank() },
                 textToType = args.optString("text", args.optString("query", "")),
@@ -271,15 +335,16 @@ class AgentToolExecutor(private val context: Context) {
             "youtube_play"        -> {
                 val raw = args.optString("query", args.optString("song", args.optString("title", "")))
                 val clean = com.soltini.app.orchestrator.MyraCommandParser.cleanYouTubeQuery(raw).ifBlank { raw.trim() }
-                val useApp = com.soltini.app.orchestrator.DestinationResolver.wantsYouTubeApp(
+                val useInternal = com.soltini.app.orchestrator.DestinationResolver.wantsInternalBrowser(
                     raw, args.optString("destination", args.optString("target", ""))
                 )
-                if (useApp) {
+                if (!useInternal) {
+                    // DEFAULT: real YouTube app (falls back to the phone's default browser if the app is missing).
                     youtubeAutomator.playSong(clean)
                 } else {
-                    // Default: Internal Browser (supports background / lock-screen playback).
+                    // Explicit "internal browser" request only.
                     try {
-                        kotlinx.coroutines.runBlocking {
+                        blocking {
                             com.soltini.app.browser.BrowserController.getInstance(context).playMediaOnYouTube(clean)
                         }
                         JSONObject().apply {
@@ -335,7 +400,7 @@ class AgentToolExecutor(private val context: Context) {
             )
 
             // ── Instagram Automation ──────────────────────────────────────
-            "instagram_send_message" -> kotlinx.coroutines.runBlocking {
+            "instagram_send_message" -> blocking {
                 instagramAutomator.sendMessage(
                     username = args.optString("username", args.optString("contact_name", "")),
                     message = args.optString("message", "")
@@ -354,7 +419,7 @@ class AgentToolExecutor(private val context: Context) {
                         put("status", "success")
                         put("busy_mode_active", true)
                         put("reason", sanitized)
-                        put("message", "Busy mode enabled. Auto-replying to WhatsApp, Instagram, Telegram, SMS messages contextually.")
+                        put("message", "Busy mode enabled. Replies are only DRAFTED; nothing is sent without the user's confirmation, and groups are never answered.")
                     }
                 } else {
                     val summary = busyMgr.disableBusyMode()
@@ -363,7 +428,7 @@ class AgentToolExecutor(private val context: Context) {
                         put("busy_mode_active", false)
                         put("replied_count", summary.totalRepliedCount)
                         put("unique_senders", org.json.JSONArray(summary.uniqueSenders))
-                        put("message", "Busy mode disabled. Replied to ${summary.totalRepliedCount} messages.")
+                        put("message", "Busy mode disabled. ${summary.totalRepliedCount} confirmed replies sent, ${summary.unsentDraftCount} drafts discarded.")
                     }
                 }
             }
@@ -430,38 +495,38 @@ class AgentToolExecutor(private val context: Context) {
                 val task = args.optString("task", args.optString("task_description", args.optString("query", "")))
                 publicApiRegistry.recommendApisForTask(task)
             }
-            "execute_public_api" -> kotlinx.coroutines.runBlocking {
+            "execute_public_api" -> blocking {
                 val url = args.optString("url", "")
                 val method = args.optString("method", "GET")
                 val body = args.optString("body", "").ifBlank { null }
                 publicApiExecutor.executeApi(url = url, method = method, body = body)
             }
-            "fetch_crypto_price" -> kotlinx.coroutines.runBlocking {
+            "fetch_crypto_price" -> blocking {
                 val coin = args.optString("coin", args.optString("crypto", "bitcoin"))
                 val currency = args.optString("currency", "usd")
                 publicApiExecutor.fetchCryptoPrice(coin, currency)
             }
-            "fetch_weather" -> kotlinx.coroutines.runBlocking {
+            "fetch_weather" -> blocking {
                 val city = args.optString("city", args.optString("location", "Delhi"))
                 publicApiExecutor.fetchWeather(city)
             }
-            "lookup_dictionary" -> kotlinx.coroutines.runBlocking {
+            "lookup_dictionary" -> blocking {
                 val word = args.optString("word", "")
                 publicApiExecutor.lookupDictionaryWord(word)
             }
-            "fetch_currency_rate" -> kotlinx.coroutines.runBlocking {
+            "fetch_currency_rate" -> blocking {
                 val from = args.optString("from", "USD")
                 val to = args.optString("to", "INR")
                 publicApiExecutor.fetchCurrencyRate(from, to)
             }
-            "lookup_ip" -> kotlinx.coroutines.runBlocking {
+            "lookup_ip" -> blocking {
                 val ip = args.optString("ip", "").ifBlank { null }
                 publicApiExecutor.lookupIp(ip)
             }
-            "fetch_random_joke" -> kotlinx.coroutines.runBlocking {
+            "fetch_random_joke" -> blocking {
                 publicApiExecutor.fetchRandomJoke()
             }
-            "fetch_random_advice" -> kotlinx.coroutines.runBlocking {
+            "fetch_random_advice" -> blocking {
                 publicApiExecutor.fetchRandomAdvice()
             }
 
@@ -572,7 +637,7 @@ class AgentToolExecutor(private val context: Context) {
         val uri = fileManager.prepareImageForVision(file) ?: return error("Could not load ${file.name}.")
         return try {
             val settings = com.soltini.app.settings.AppSettings(context)
-            val analysis = kotlinx.coroutines.runBlocking {
+            val analysis = blocking {
                 com.soltini.app.rag.RagKnowledgeEngine.getInstance(context, settings)
                     .imageVisionParser.analyzeImageWithPrompt(context, uri, question)
             }
@@ -639,7 +704,7 @@ class AgentToolExecutor(private val context: Context) {
     private fun observeScreen(): JSONObject {
         val companion = com.soltini.app.companion.ScreenCompanionManager.getInstance(context)
         val snapshot = try {
-            kotlinx.coroutines.runBlocking {
+            blocking(4_000L) {
                 kotlinx.coroutines.withTimeoutOrNull(2500L) {
                     companion.captureCurrentScreenWithVision()
                 }
@@ -709,14 +774,20 @@ class AgentToolExecutor(private val context: Context) {
         if (text.isBlank()) return error("text is required")
         val svc = SoltiniAccessibilityService.getInstance()
             ?: return error("Accessibility Service not active")
-        return if (svc.typeText(text)) {
-            result("status", "typed", "text", text)
-        } else {
-            error("No editable text field found on screen. Please tap a text field first.")
+        val o = svc.typeTextDetailed(text)
+        return when {
+            o.ok && o.verified -> result("status", "typed", "text", text, "verified", "true")
+            o.ok -> result(
+                "status", "typed_unverified", "text", text, "verified", "false",
+                "note", "The field accepted the input but the text could not be confirmed. " +
+                    "Call look_at_screen to check; if it is missing, tap the field and type again. " +
+                    "Do NOT tell the user it is done until you have seen the text on screen."
+            )
+            else -> error("Text could NOT be typed (no editable field accepted it). Tap the field first, then retry.")
         }
     }
 
-    fun searchGoogle(rawQuery: String, forceChrome: Boolean = false): JSONObject {
+    fun searchGoogle(rawQuery: String, forceChrome: Boolean = true): JSONObject {
         val query = com.soltini.app.orchestrator.MyraCommandParser.cleanWebSearchQuery(rawQuery).ifBlank { rawQuery.trim() }
         if (query.isBlank()) return error("query is required for google search")
         return try {
@@ -748,7 +819,7 @@ class AgentToolExecutor(private val context: Context) {
         }
     }
 
-    fun openUrl(url: String, forceChrome: Boolean = false): JSONObject {
+    fun openUrl(url: String, forceChrome: Boolean = true): JSONObject {
         if (url.isBlank()) return error("url is required")
         return try {
             val fullUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url

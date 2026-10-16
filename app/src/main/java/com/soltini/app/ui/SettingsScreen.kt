@@ -171,7 +171,8 @@ enum class SettingsRoute {
     SCHEDULED_TASKS,
     VOICE_ID,
     PUBLIC_APIS_HUB,
-    ORB_STYLE
+    ORB_STYLE,
+    AGENT_LOG
 }
 
 @Composable
@@ -348,6 +349,7 @@ fun SettingsScreen(
                         SettingsRoute.SCHEDULED_TASKS -> "Scheduled Tasks"
                         SettingsRoute.PUBLIC_APIS_HUB -> "Public APIs Hub"
                         SettingsRoute.ORB_STYLE -> "Floating Orb"
+                        SettingsRoute.AGENT_LOG -> "Agent Log"
                         else -> ""
                     }
                     GlassStatusBadge(text = routeTitle, style = BadgeStyle.PURPLE)
@@ -452,6 +454,12 @@ fun SettingsScreen(
                         ) { currentRoute = SettingsRoute.ORB_STYLE }
 
                         SettingsMenuCard(
+                            title = "Agent Log",
+                            subtitle = "Failures, learned routines & interrupted tasks",
+                            icon = Icons.Default.Schedule
+                        ) { currentRoute = SettingsRoute.AGENT_LOG }
+
+                        SettingsMenuCard(
                             title = "Home Automation (ESP32)",
                             subtitle = "Smart home MQTT relays & firmware generator",
                             icon = Icons.Default.ElectricBolt,
@@ -520,6 +528,11 @@ fun SettingsScreen(
 
                 SettingsRoute.ORB_STYLE -> {
                     OrbStyleSettingsSection(appSettings = viewModel?.getAppSettings())
+                    Spacer(Modifier.height(90.dp))
+                }
+
+                SettingsRoute.AGENT_LOG -> {
+                    AgentLogSection(context = context)
                     Spacer(Modifier.height(90.dp))
                 }
 
@@ -2645,7 +2658,7 @@ private fun BusyModeCard(context: Context) {
                         fontSize = 15.sp
                     )
                     GlassStatusBadge(
-                        text = if (isBusy) "ACTIVE • Auto-replying" else "INACTIVE",
+                        text = if (isBusy) "ACTIVE • Drafts (confirmation ke baad hi send)" else "INACTIVE",
                         style = if (isBusy) BadgeStyle.ACTIVE else BadgeStyle.INACTIVE
                     )
                 }

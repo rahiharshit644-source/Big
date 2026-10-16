@@ -586,12 +586,12 @@ object BuiltinPluginInitializer {
 
                 val res = if (action.contains("search")) {
                     youtubeAutomator.search(cleanQuery)
-                } else if (com.soltini.app.orchestrator.DestinationResolver.wantsYouTubeApp(
+                } else if (!com.soltini.app.orchestrator.DestinationResolver.wantsInternalBrowser(
                         rawQuery, context.optString("destination", "")
                     )) {
                     youtubeAutomator.playSong(cleanQuery)
                 } else {
-                    // Default: Internal Browser (supports background / lock-screen playback).
+                    // Explicit "internal browser" request only.
                     try {
                         com.soltini.app.browser.BrowserController.getInstance(context.context).playMediaOnYouTube(cleanQuery)
                         JSONObject().apply { put("status", "playing") }

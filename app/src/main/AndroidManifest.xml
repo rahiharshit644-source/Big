@@ -183,6 +183,10 @@
             android:exported="false" />
 
         <receiver
+            android:name="com.soltini.app.messaging.BusyReplyReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name="com.soltini.app.scheduler.ScheduledTaskAlarmReceiver"
             android:exported="false">
             <intent-filter>

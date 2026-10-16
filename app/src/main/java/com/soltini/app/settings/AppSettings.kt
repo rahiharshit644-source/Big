@@ -256,10 +256,15 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_MEM0_AGENT_ID, "myra") ?: "myra"
         set(value) = prefs.edit().putString(KEY_MEM0_AGENT_ID, value.trim().ifBlank { "myra" }).apply()
 
-    /** VoicePrint audio gating mode: OFF, OWNER_ONLY, OWNER_FOR_SENSITIVE (default) */
+    /** VoicePrint audio gating mode: OFF, OWNER_ONLY (default: only Boss's voice is heard), OWNER_FOR_SENSITIVE */
     var voiceGateMode: String
-        get() = prefs.getString(KEY_VOICE_GATE_MODE, "OWNER_FOR_SENSITIVE") ?: "OWNER_FOR_SENSITIVE"
+        get() = prefs.getString(KEY_VOICE_GATE_MODE, "OWNER_ONLY") ?: "OWNER_ONLY"
         set(value) = prefs.edit().putString(KEY_VOICE_GATE_MODE, value).apply()
+
+    /** Semantic (meaning-based) document search: indexed text chunks are sent to Gemini to create embeddings. */
+    var isRagSemanticSearchEnabled: Boolean
+        get() = prefs.getBoolean("rag_semantic_search_enabled", true)
+        set(value) = prefs.edit().putBoolean("rag_semantic_search_enabled", value).apply()
 
     /** VoicePrint threshold sensitivity offset (-0.15 to +0.15) */
     var voiceprintSensitivityOffset: Float

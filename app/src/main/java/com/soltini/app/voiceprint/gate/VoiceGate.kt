@@ -57,14 +57,21 @@ class VoiceGate(
 ) {
     companion object {
         private const val TAG = "VoiceGate"
-        const val PRE_ROLL_MS = 400
+        const val PRE_ROLL_MS = 2500
         const val HANGOVER_MS = 1200L
     }
 
     var mode: VoiceGateMode = VoiceGateMode.OWNER_FOR_SENSITIVE
     var isModelSpeaking: Boolean = false
 
-    private val preRollBuffer = PcmRingBuffer(capacitySamples = 32000)
+    /** While open (e.g. right after the wake word) the gate lets Boss's short command through without waiting for a full voice check. */
+    @Volatile private var forceOpenUntil = 0L
+
+    fun openWindow(ms: Long = 6000L) {
+        forceOpenUntil = System.currentTimeMillis() + ms
+    }
+
+    private val preRollBuffer = PcmRingBuffer(capacitySamples = 48000)
 
     // Non-blocking channel for passing audio chunks to the background verification worker
     // DROPS oldest frames if inference falls behind so audio capture thread NEVER blocks.
@@ -151,7 +158,8 @@ class VoiceGate(
 
         // 3. Prevent model audio echo from opening the gate
         // Barge-in is only allowed if verifier actually confirms the owner
-        val isVerifiedOwner = verifier.state.value.state == VoiceprintVerifier.VerificationStateEnum.OWNER
+        val isVerifiedOwner = verifier.state.value.state == VoiceprintVerifier.VerificationStateEnum.OWNER ||
+            now < forceOpenUntil
 
         // Queue audio to verifier non-blockingly
         inferenceChannel.trySend(shorts)

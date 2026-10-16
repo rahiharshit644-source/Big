@@ -21,6 +21,9 @@ object AgentTaskRegistry {
         if (current === engine) current = null
     }
 
+    /** True while an engine run or a task list is executing (used to keep new work / screen peeks from interrupting it). */
+    fun isBusy(): Boolean = current?.isActive == true || TaskQueueRegistry.isActive()
+
     /** Snapshot of the running task, else of the last finished one, else null. Used by the floating HUD. */
     fun currentOrLast(): TaskSnapshot? = current?.snapshot() ?: lastSnapshot
 
@@ -31,14 +34,22 @@ object AgentTaskRegistry {
 
     fun status(): JSONObject {
         val e = current
-        if (e != null) return JSONObject().apply { put("status", "running"); put("task", e.snapshot().toJson()) }
+        val q = TaskQueueRegistry.status()
+        if (e != null) return JSONObject().apply {
+            put("status", "running"); put("task", e.snapshot().toJson())
+            if (q != null) put("task_list", q)
+        }
+        // between two sub-tasks of a task list there is briefly no engine
+        if (q != null) return JSONObject().apply { put("status", "running"); put("task_list", q) }
         val last = lastSnapshot ?: return none()
         return JSONObject().apply { put("status", "finished"); put("task", last.toJson()) }
     }
 
     fun cancel(): JSONObject {
-        val e = current ?: return none()
-        e.cancel()
+        val queueCancelled = TaskQueueRegistry.cancel()   // stops the remaining sub-tasks too
+        val e = current
+        if (e == null && !queueCancelled) return none()
+        e?.cancel()
         return JSONObject().apply { put("status", "cancelling"); put("message", "The task is being stopped.") }
     }
 

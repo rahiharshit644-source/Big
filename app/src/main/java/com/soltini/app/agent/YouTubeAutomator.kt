@@ -93,7 +93,7 @@ class YouTubeAutomator(private val context: Context) {
                 if (success) {
                     val url = "https://www.youtube.com/watch?v=$resolvedId"
                     Log.i(TAG, "Played song from search '$query' -> $url")
-                    return result("status", "playing_video", "video_id", resolvedId, "url", url, "query", query)
+                    return result("status", "playing_video", "video_id", resolvedId, "url", url, "query", query, "verified", verifyPlaying().toString())
                 }
             }
         }
@@ -152,7 +152,7 @@ class YouTubeAutomator(private val context: Context) {
             if (success) {
                 val url = "https://www.youtube.com/watch?v=$playableId"
                 Log.i(TAG, "Successfully opened playable video for '$videoIdOrUrl': $url")
-                return result("status", "playing_video", "video_id", playableId, "url", url)
+                return result("status", "playing_video", "video_id", playableId, "url", url, "verified", verifyPlaying().toString())
             }
             return error("Failed to launch video playback intent for video ID: $playableId")
         }
@@ -370,6 +370,30 @@ class YouTubeAutomator(private val context: Context) {
      * Toggles play/pause on YouTube (or any active media session).
      * Media key dispatch works even when YouTube is in the background.
      */
+    /** True once YouTube is really in front or audio is playing (waits up to 6 s for the app to start). */
+    private fun verifyPlaying(): Boolean {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return UiWait.until(6000, 250) {
+            am.isMusicActive ||
+                (ScreenObserver.isAvailable() && ScreenObserver.foregroundPackage() == "com.google.android.youtube")
+        }
+    }
+
+    fun pause(): JSONObject {
+        dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
+        return result("status", "paused")
+    }
+
+    fun resume(): JSONObject {
+        dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+        return result("status", "resumed")
+    }
+
+    fun stop(): JSONObject {
+        dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_STOP)
+        return result("status", "stopped")
+    }
+
     fun playPause(): JSONObject {
         dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         return result("status", "play_pause_toggled")
@@ -416,9 +440,9 @@ class YouTubeAutomator(private val context: Context) {
 
         repeat(taps.coerceAtMost(5)) { // Max 5 taps (50s)
             svc.tapAt(tapX, tapY)
-            Thread.sleep(150)
+            Thread.sleep(150)      // must stay short and fixed: YouTube's double-tap window is ~300 ms
             svc.tapAt(tapX, tapY) // Double-tap
-            Thread.sleep(200)
+            Thread.sleep(200)      // gap before the next double-tap
         }
 
         val direction = if (forward) "forward" else "backward"
@@ -461,14 +485,9 @@ class YouTubeAutomator(private val context: Context) {
         val svc = SoltiniAccessibilityService.getInstance()
             ?: return error("Accessibility Service not active")
 
-        // Try up to 3 times (ad skip button sometimes appears with a delay)
-        repeat(3) {
-            for (label in SKIP_AD_LABELS) {
-                if (svc.clickByText(label)) {
-                    return result("status", "ad_skipped")
-                }
-            }
-            Thread.sleep(500)
+        // The skip button appears a few seconds into the ad: poll for it instead of 3 blind tries
+        if (UiWait.clickAnyWhenReady(svc, SKIP_AD_LABELS, 6000)) {
+            return result("status", "ad_skipped")
         }
         return error("No skippable ad found — the ad may not be skippable yet or there is no ad playing")
     }
@@ -484,24 +503,18 @@ class YouTubeAutomator(private val context: Context) {
         // First, tap the video to show controls
         val screen = context.resources.displayMetrics
         svc.tapAt(screen.widthPixels / 2f, screen.heightPixels / 2f)
-        Thread.sleep(400)
 
-        // Click the overflow / more options button
-        var opened = false
-        for (label in QUALITY_MENU_LABELS) {
-            if (svc.clickByText(label)) { opened = true; break }
-        }
+        // Click the overflow / more options button as soon as the controls are visible
+        val opened = UiWait.clickAnyWhenReady(svc, QUALITY_MENU_LABELS, 3000)
         if (!opened) return error("Could not open YouTube settings menu — tap the video first to show controls")
-        Thread.sleep(500)
 
-        // Click "Quality" option in the menu
-        if (!svc.clickByText("Quality")) {
+        // Click "Quality" option once the menu is drawn
+        if (!UiWait.clickWhenReady(svc, "Quality", 3000)) {
             return error("Quality option not found in menu")
         }
-        Thread.sleep(400)
 
-        // Click the requested quality
-        if (svc.clickByText(quality)) {
+        // Click the requested quality once the list is drawn
+        if (UiWait.clickWhenReady(svc, quality, 3000)) {
             return result("status", "quality_set", "quality", quality)
         }
 
@@ -526,7 +539,7 @@ class YouTubeAutomator(private val context: Context) {
         // Show player controls first
         val screen = context.resources.displayMetrics
         svc.tapAt(screen.widthPixels / 2f, screen.heightPixels / 2f)
-        Thread.sleep(300)
+        UiWait.until(1500) { FULLSCREEN_LABELS.any { svc.readScreen().contains(it, ignoreCase = true) } }
 
         return clickOneOf(svc, FULLSCREEN_LABELS, "Fullscreen button")
     }
@@ -541,7 +554,7 @@ class YouTubeAutomator(private val context: Context) {
         // Show player controls first
         val screen = context.resources.displayMetrics
         svc.tapAt(screen.widthPixels / 2f, screen.heightPixels / 2f)
-        Thread.sleep(300)
+        UiWait.until(1500) { CAPTIONS_LABELS.any { svc.readScreen().contains(it, ignoreCase = true) } }
 
         return clickOneOf(svc, CAPTIONS_LABELS, "Captions button")
     }
