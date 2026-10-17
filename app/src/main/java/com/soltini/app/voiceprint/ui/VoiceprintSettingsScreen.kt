@@ -76,7 +76,7 @@ fun VoiceprintSettingsScreen(
                             text = "Voice ID & Verification",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextCharcoal
+                            color = LocalMyraTokens.current.textPrimary
                         )
                     },
                     navigationIcon = {
@@ -129,7 +129,7 @@ fun VoiceprintSettingsScreen(
                                 )
                                 Text(
                                     text = modelStatus,
-                                    color = TextMidGray,
+                                    color = LocalMyraTokens.current.textSecondary,
                                     fontSize = 12.sp
                                 )
                             }
@@ -154,13 +154,13 @@ fun VoiceprintSettingsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (activeProfile != null) "Owner Voiceprint Enrolled" else "No Voiceprint Enrolled",
-                                color = TextCharcoal,
+                                color = LocalMyraTokens.current.textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                             Text(
                                 text = if (activeProfile != null) "Encrypted with AndroidKeyStore AES-256 GCM" else "Enroll your voice to personalize security",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -184,15 +184,15 @@ fun VoiceprintSettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Enrolled Date", color = TextMidGray, fontSize = 12.sp)
-                            Text(formattedDate, color = TextCharcoal, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                            Text("Enrolled Date", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
+                            Text(formattedDate, color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Calibrated Threshold", color = TextMidGray, fontSize = 12.sp)
+                            Text("Calibrated Threshold", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
                             Text("${(profile.calibratedThreshold * 100).toInt()}%", color = MintAccentDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -200,8 +200,8 @@ fun VoiceprintSettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Embedding Vector Dim", color = TextMidGray, fontSize = 12.sp)
-                            Text("${profile.embeddingDim} dims", color = TextCharcoal, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                            Text("Embedding Vector Dim", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
+                            Text("${profile.embeddingDim} dims", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -281,7 +281,7 @@ fun VoiceprintSettingsScreen(
                     ) {
                         Text(
                             text = "Verification Sensitivity",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -295,7 +295,7 @@ fun VoiceprintSettingsScreen(
 
                     Text(
                         text = "Calibrated base: ${(calibrated * 100).toInt()}%. Slide left for noisier rooms, right for stricter verification.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
                     )
@@ -335,14 +335,14 @@ fun VoiceprintSettingsScreen(
                         Column {
                             Text(
                                 text = "Security Notice",
-                                color = TextCharcoal,
+                                color = LocalMyraTokens.current.textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "On-device voice verification is a convenience layer against casual unauthorized access. Acoustic replay recordings could potentially mimic voice features. High-risk financial payments and system settings require device biometric authentication.",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp,
                                 lineHeight = 17.sp
                             )
@@ -357,11 +357,11 @@ fun VoiceprintSettingsScreen(
             if (showDeleteConfirmDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteConfirmDialog = false },
-                    title = { Text("Delete Voiceprint?", color = TextCharcoal, fontWeight = FontWeight.Bold) },
+                    title = { Text("Delete Voiceprint?", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold) },
                     text = {
                         Text(
                             "This will permanently erase your enrolled voiceprint embedding from the secure hardware storage. Speaker verification will be disabled until you re-enroll.",
-                            color = TextMidGray
+                            color = LocalMyraTokens.current.textSecondary
                         )
                     },
                     confirmButton = {
@@ -378,7 +378,7 @@ fun VoiceprintSettingsScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                            Text("Cancel", color = TextMidGray)
+                            Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                         }
                     },
                     containerColor = GlassCardWhiteSolid,
@@ -422,7 +422,7 @@ private fun ModeSelectionItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = description,
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
                 )

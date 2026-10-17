@@ -34,7 +34,10 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Public
@@ -46,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -108,6 +112,7 @@ class MainActivity : ComponentActivity() {
         com.soltini.app.util.CrashReporter.install(this)
         val pendingCrashReport: String? = com.soltini.app.util.CrashReporter.consumeLastCrash(this)
         enableEdgeToEdge()
+        ThemeController.init(this)
         val viewModel = ViewModelProvider(this)[MainViewModel::class.java]
         val homeViewModel = ViewModelProvider(this)[HomeAutomationViewModel::class.java]
 
@@ -185,7 +190,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(currentScreen) {
-                    if (currentScreen in listOf("voice", "settings", "logs", "home_automation", "apis_hub")) {
+                    if (currentScreen in listOf("voice", "chat", "settings", "logs", "home_automation", "apis_hub")) {
                         if (Settings.canDrawOverlays(this@MainActivity)) {
                             OverlayService.start(this@MainActivity)
                         }
@@ -193,13 +198,14 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val showBottomNav = currentScreen in listOf(
-                    "voice", "browser", "home_automation", "apis_hub", "logs", "settings", "add_device"
+                    "voice", "chat", "browser", "home_automation", "apis_hub", "logs", "settings", "add_device", "weather", "memory"
                 )
 
                 val screenOrder = remember {
                     mapOf(
                         "voice" to 0,
                         "browser" to 1,
+                        "chat" to 1,
                         "home_automation" to 2,
                         "add_device" to 2,
                         "apis_hub" to 3,
@@ -209,10 +215,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                val navConnection by viewModel.connectionState.collectAsState()
+                val navMuted by viewModel.isMuted.collectAsState()
+                val navHasMic by viewModel.hasMicPermission.collectAsState()
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(SoftBackgroundBrush)
+                        .background(LocalMyraTokens.current.backgroundBrush)
                 ) {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
@@ -221,7 +231,17 @@ class MainActivity : ComponentActivity() {
                             if (showBottomNav) {
                                 FloatingGlassBottomNavBar(
                                     currentScreen = currentScreen,
-                                    onSelectScreen = { currentScreen = it }
+                                    onSelectScreen = { currentScreen = it },
+                                    micMuted = navMuted,
+                                    onMicClick = {
+                                        // Same real actions as the Voice screen: no mic permission -> permission flow;
+                                        // live -> mute/unmute; otherwise (re)connect live voice.
+                                        when {
+                                            !navHasMic -> currentScreen = "permissions"
+                                            navConnection == com.soltini.app.network.ConnectionState.Live -> viewModel.toggleMute()
+                                            else -> viewModel.connect()
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -323,6 +343,25 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                         )
                                     }
+                                    "weather" -> {
+                                        com.soltini.app.ui.WeatherScreen(onBack = { currentScreen = "voice" }, modifier = Modifier)
+                                    }
+                                    "memory" -> {
+                                        com.soltini.app.ui.MemoryScreen(onBack = { currentScreen = "voice" }, modifier = Modifier)
+                                    }
+                                    "chat" -> {
+                                        com.soltini.app.ui.ChatScreen(
+                                            viewModel = viewModel,
+                                            onMicClick = {
+                                                when {
+                                                    !navHasMic -> currentScreen = "permissions"
+                                                    navConnection == com.soltini.app.network.ConnectionState.Live -> viewModel.toggleMute()
+                                                    else -> viewModel.connect()
+                                                }
+                                            },
+                                            modifier = Modifier
+                                        )
+                                    }
                                     "browser" -> {
                                         com.soltini.app.browser.MyraBrowserScreen(
                                             onOpenVoiceAi = { currentScreen = "voice" },
@@ -336,6 +375,9 @@ class MainActivity : ComponentActivity() {
                                             onOpenSettings = { currentScreen = "settings" },
                                             onOpenHomeAutomation = { currentScreen = "home_automation" },
                                             onOpenApisHub = { currentScreen = "apis_hub" },
+                                            onOpenBrowser = { currentScreen = "browser" },
+                                            onOpenWeather = { currentScreen = "weather" },
+                                            onOpenMemory = { currentScreen = "memory" },
                                             modifier = Modifier
                                         )
                                     }
@@ -362,11 +404,25 @@ private data class NavDestination(
 @Composable
 private fun FloatingGlassBottomNavBar(
     currentScreen: String,
-    onSelectScreen: (String) -> Unit
+    onSelectScreen: (String) -> Unit,
+    micMuted: Boolean = false,
+    onMicClick: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
-    val items = remember {
-        listOf(
+    val tokens = LocalMyraTokens.current
+    val isBlue = tokens.mode == MyraThemeMode.BLUE_GLASS
+
+    // Classic: the original six destinations, untouched.
+    // Blue Glass: Home, Chat, Browser | mic | Devices, Settings. APIs Hub and Logs stay reachable from the
+    // Home dashboard shortcuts (and Settings), so no feature is removed.
+    val items = remember(isBlue) {
+        if (isBlue) listOf(
+            NavDestination("voice", "Home", Icons.Default.Home),
+            NavDestination("chat", "Chat", Icons.Default.ChatBubble),
+            NavDestination("browser", "Browser", Icons.Default.Language),
+            NavDestination("home_automation", "Devices", Icons.Default.ElectricBolt),
+            NavDestination("settings", "Settings", Icons.Default.Settings)
+        ) else listOf(
             NavDestination("voice", "Voice AI", Icons.Default.Mic),
             NavDestination("browser", "Browser", Icons.Default.Language),
             NavDestination("home_automation", "Home", Icons.Default.ElectricBolt),
@@ -374,6 +430,47 @@ private fun FloatingGlassBottomNavBar(
             NavDestination("logs", "Logs", Icons.AutoMirrored.Filled.Article),
             NavDestination("settings", "Settings", Icons.Default.Settings)
         )
+    }
+    val micSlot = if (isBlue) 3 else -1 // mic sits between Browser and Devices
+
+    @Composable
+    fun MicButton() {
+        val micInteraction = remember { MutableInteractionSource() }
+        val micPressed by micInteraction.collectIsPressedAsState()
+        val micScale by animateFloatAsState(
+            targetValue = if (micPressed) 0.92f else 1f,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+            label = "navMicScale"
+        )
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .scale(micScale)
+                .shadow(
+                    elevation = 8.dp,
+                    shape = CircleShape,
+                    ambientColor = tokens.shadowColor.copy(alpha = 0.30f),
+                    spotColor = tokens.accentSecondary.copy(alpha = 0.35f)
+                )
+                .clip(CircleShape)
+                .background(if (micMuted) Brush.linearGradient(listOf(Color(0xFFFDE8E8), Color(0xFFFCD2D2))) else tokens.accentGradient)
+                .clickable(
+                    interactionSource = micInteraction,
+                    indication = null,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onMicClick()
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (micMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                contentDescription = if (micMuted) "Unmute microphone" else "Microphone",
+                tint = if (micMuted) Color(0xFFD64545) else Color.White,
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 
     Box(
@@ -385,15 +482,16 @@ private fun FloatingGlassBottomNavBar(
     ) {
         Surface(
             shape = CircleShape,
-            color = GlassCardWhite,
+            color = tokens.cardColor,
+            border = tokens.cardBorder,
             tonalElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(
                     elevation = 12.dp,
                     shape = CircleShape,
-                    ambientColor = PrimaryPurple.copy(alpha = 0.18f),
-                    spotColor = PrimaryPurple.copy(alpha = 0.24f)
+                    ambientColor = tokens.shadowColor.copy(alpha = 0.18f),
+                    spotColor = tokens.shadowColor.copy(alpha = 0.24f)
                 )
         ) {
             Row(
@@ -403,7 +501,8 @@ private fun FloatingGlassBottomNavBar(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items.forEach { item ->
+                items.forEachIndexed { index, item ->
+                    if (index == micSlot) MicButton()
                     val isSelected = if (item.route == "home_automation") {
                         currentScreen == "home_automation" || currentScreen == "add_device"
                     } else {
@@ -427,7 +526,7 @@ private fun FloatingGlassBottomNavBar(
                         label = "navPad"
                     )
                     val iconTint by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else TextMidGray,
+                        targetValue = if (isSelected) Color.White else tokens.textSecondary,
                         animationSpec = tween(220),
                         label = "navTint"
                     )
@@ -442,10 +541,10 @@ private fun FloatingGlassBottomNavBar(
                                         .shadow(
                                             elevation = 6.dp,
                                             shape = CircleShape,
-                                            ambientColor = PrimaryPurple.copy(alpha = 0.3f),
-                                            spotColor = PrimaryPink.copy(alpha = 0.35f)
+                                            ambientColor = tokens.shadowColor.copy(alpha = 0.3f),
+                                            spotColor = tokens.accentSecondary.copy(alpha = 0.35f)
                                         )
-                                        .background(PrimaryHorizontalBrush, CircleShape)
+                                        .background(tokens.accentHorizontalGradient, CircleShape)
                                 } else {
                                     Modifier.background(Color.Transparent, CircleShape)
                                 }
@@ -473,6 +572,7 @@ private fun FloatingGlassBottomNavBar(
                                 tint = iconTint,
                                 modifier = Modifier.size(19.dp)
                             )
+                            // Blue Glass has fewer items, so only the selected one carries a label (as before)
                             if (isSelected) {
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(

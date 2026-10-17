@@ -165,7 +165,7 @@ fun HomeAutomationScreen(
                             color = GlassCardWhite,
                             modifier = Modifier
                                 .size(40.dp)
-                                .shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.14f))
+                                .shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -180,13 +180,13 @@ fun HomeAutomationScreen(
                         Column {
                             Text(
                                 text = "Smart Home",
-                                color = TextCharcoal,
+                                color = LocalMyraTokens.current.textPrimary,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "ESP32 Mesh & Gemini Live",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -207,7 +207,7 @@ fun HomeAutomationScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 18.dp, vertical = 6.dp)
-                        .shadow(5.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.14f))
+                        .shadow(5.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -298,8 +298,8 @@ private fun GlassTabPill(
             .then(
                 if (selected) {
                     Modifier
-                        .shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.25f))
-                        .background(PrimaryHorizontalBrush, CircleShape)
+                        .shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.25f))
+                        .background(LocalMyraTokens.current.accentHorizontalGradient, CircleShape)
                 } else {
                     Modifier.background(Color.Transparent, CircleShape)
                 }
@@ -351,7 +351,7 @@ private fun MqttStatusBadge(
         },
         shape = CircleShape,
         color = bgColor,
-        modifier = Modifier.shadow(3.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.1f))
+        modifier = Modifier.shadow(3.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.1f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -419,14 +419,14 @@ private fun DeviceListTab(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "No Smart Devices Yet",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Add a relay, light, fan, or smart lock to control it via voice and auto-generate ESP32 firmware.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         lineHeight = 19.sp
@@ -506,14 +506,14 @@ private fun BoardHeaderCard(
                 Column {
                     Text(
                         text = boardId,
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         fontFamily = JetBrainsMonoFamily
                     )
                     Text(
                         text = "$deviceCount pins mapped",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 11.sp
                     )
                 }
@@ -592,7 +592,7 @@ private fun DeviceItemCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = device.deviceName,
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -616,7 +616,7 @@ private fun DeviceItemCard(
 
                     Text(
                         text = "${device.roomName} • ${device.mqttTopicBase}",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -706,7 +706,7 @@ fun AddDeviceDialog(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     "Add Smart Device",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -764,7 +764,7 @@ fun AddDeviceDialog(
                     ) {
                         DeviceType.values().forEach { type ->
                             DropdownMenuItem(
-                                text = { Text(type.name, color = TextCharcoal) },
+                                text = { Text(type.name, color = LocalMyraTokens.current.textPrimary) },
                                 onClick = {
                                     selectedType = type
                                     typeExpanded = false
@@ -810,7 +810,7 @@ fun AddDeviceDialog(
                 if (existingBoardIds.isNotEmpty()) {
                     Text(
                         text = "Or pick existing board:",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 11.sp
                     )
                     Row(
@@ -850,7 +850,7 @@ fun AddDeviceDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextMidGray)
+                Text("Cancel", color = LocalMyraTokens.current.textSecondary)
             }
         }
     )
@@ -896,13 +896,13 @@ private fun BrokerConfigTab(
                 Column {
                     Text(
                         "Target 2.4 GHz WiFi",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = "ESP32 microcontrollers connect to 2.4 GHz WiFi bands.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -960,13 +960,13 @@ private fun BrokerConfigTab(
                 Column {
                     Text(
                         "HiveMQ Cloud / MQTT Broker",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = "Encrypted in Android Keystore for TLS voice control.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                 }

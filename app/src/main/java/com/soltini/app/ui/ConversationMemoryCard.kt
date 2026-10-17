@@ -1,5 +1,6 @@
 package com.soltini.app.ui
 
+import com.soltini.app.ui.theme.LocalMyraTokens
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
@@ -37,13 +38,13 @@ fun ConversationMemoryCard(context: Context, modifier: Modifier = Modifier) {
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Conversation Memory", color = TextCharcoal, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Conversation Memory", color = LocalMyraTokens.current.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 "Every voice and typed conversation is saved on this phone so Myra can remember and tell you what was discussed earlier.",
-                color = TextMidGray, fontSize = 12.sp
+                color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp
             )
-            Text("Saved messages: ${count ?: "…"}", color = TextCharcoal, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text("Folder: ${archive.folderPath}", color = TextMidGray, fontSize = 11.sp)
+            Text("Saved messages: ${count ?: "…"}", color = LocalMyraTokens.current.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text("Folder: ${archive.folderPath}", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(

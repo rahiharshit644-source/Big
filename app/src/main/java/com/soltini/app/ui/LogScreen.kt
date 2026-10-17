@@ -70,7 +70,7 @@ fun LogScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Column(

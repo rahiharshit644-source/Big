@@ -1,5 +1,6 @@
 package com.soltini.app.ui
 
+import com.soltini.app.ui.theme.LocalMyraTokens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -104,7 +105,7 @@ fun OrbStyleSettingsSection(appSettings: AppSettings?) {
         Spacer(Modifier.height(14.dp))
         Text(
             text = "Both orbs change colour with Myra's state — dim when sleeping, richer while listening / thinking, most vivid while speaking. Tap the floating orb to wake Myra, drag it anywhere, long-press to snap it to the edge.",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 12.sp,
             lineHeight = 17.sp,
             modifier = Modifier.padding(horizontal = 4.dp)
@@ -140,9 +141,9 @@ private fun OrbOptionCard(
             Spacer(Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = TextCharcoal, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = LocalMyraTokens.current.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(3.dp))
-                Text(subtitle, color = TextMidGray, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(subtitle, color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
             }
 
             Spacer(Modifier.width(10.dp))
@@ -152,7 +153,7 @@ private fun OrbOptionCard(
                     .size(26.dp)
                     .clip(CircleShape)
                     .then(
-                        if (isSelected) Modifier.background(PrimaryGradientBrush)
+                        if (isSelected) Modifier.background(LocalMyraTokens.current.accentGradient)
                         else Modifier.background(Color(0xFFF1EDF9))
                     ),
                 contentAlignment = Alignment.Center

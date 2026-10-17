@@ -1,5 +1,6 @@
 package com.soltini.app.ui
 
+import com.soltini.app.ui.theme.LocalMyraTokens
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -145,7 +146,7 @@ fun StorageRagSettingsSection(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Zero Silent Storage Access",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -160,7 +161,7 @@ fun StorageRagSettingsSection(
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "MYRA strictly accesses ONLY the folders you explicitly authorize below using Android's Storage Access Framework (SAF). Entire device storage is never silently accessed.",
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 fontSize = 13.sp,
                 lineHeight = 19.sp
             )
@@ -203,14 +204,14 @@ fun StorageRagSettingsSection(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = "No folders authorized yet",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "Tap 'Add Folder' above to let MYRA read, search, and manage files in your selected folders.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
@@ -241,13 +242,13 @@ fun StorageRagSettingsSection(
                                 Column {
                                     Text(
                                         folder.displayName,
-                                        color = TextCharcoal,
+                                        color = LocalMyraTokens.current.textPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
                                         folder.uriString.takeLast(40),
-                                        color = TextMidGray,
+                                        color = LocalMyraTokens.current.textSecondary,
                                         fontSize = 11.sp,
                                         maxLines = 1
                                     )
@@ -304,7 +305,7 @@ fun StorageRagSettingsSection(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$indexedDocCount", color = PurpleAccentStart, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Documents", color = TextMidGray, fontSize = 11.sp)
+                        Text("Documents", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
                     }
                 }
                 Box(
@@ -317,7 +318,7 @@ fun StorageRagSettingsSection(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$indexedChunkCount", color = PurpleAccentStart, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Chunks", color = TextMidGray, fontSize = 11.sp)
+                        Text("Chunks", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
                     }
                 }
                 Box(
@@ -330,7 +331,7 @@ fun StorageRagSettingsSection(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("PDF • OCR", color = MintAccentDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text("TXT, MD, Code", color = TextMidGray, fontSize = 10.sp)
+                        Text("TXT, MD, Code", color = LocalMyraTokens.current.textSecondary, fontSize = 10.sp)
                     }
                 }
             }
@@ -412,7 +413,7 @@ fun StorageRagSettingsSection(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "Top Relevant Chunks:",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -470,7 +471,7 @@ fun StorageRagSettingsSection(
             ) {
                 Text(
                     text = "Automatic snapshots are created whenever MYRA edits or modifies a file, allowing instant undo.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
@@ -500,13 +501,13 @@ fun StorageRagSettingsSection(
                                 Column {
                                     Text(
                                         backup.originalFileName,
-                                        color = TextCharcoal,
+                                        color = LocalMyraTokens.current.textPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
                                         "Saved: ${dateFormat.format(Date(backup.timestamp))}",
-                                        color = TextMidGray,
+                                        color = LocalMyraTokens.current.textSecondary,
                                         fontSize = 11.sp
                                     )
                                 }

@@ -107,7 +107,7 @@ fun AddDeviceScreen(
                     color = GlassCardWhite,
                     modifier = Modifier
                         .size(40.dp)
-                        .shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.14f))
+                        .shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f))
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -122,13 +122,13 @@ fun AddDeviceScreen(
                 Column {
                     Text(
                         text = "Add Smart Device",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Configure hardware pin & generate firmware",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -151,13 +151,13 @@ fun AddDeviceScreen(
                     Column {
                         Text(
                             text = "Hardware Configuration",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
                             text = "Map your relay or actuator to an ESP32 pin",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 12.sp
                         )
                     }
@@ -211,7 +211,7 @@ fun AddDeviceScreen(
                         ) {
                             DeviceType.values().forEach { type ->
                                 DropdownMenuItem(
-                                    text = { Text(type.name, color = TextCharcoal) },
+                                    text = { Text(type.name, color = LocalMyraTokens.current.textPrimary) },
                                     onClick = {
                                         selectedType = type
                                         typeExpanded = false
@@ -257,7 +257,7 @@ fun AddDeviceScreen(
                     if (boardIds.isNotEmpty()) {
                         Text(
                             text = "Existing Boards:",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 12.sp
                         )
                         Row(

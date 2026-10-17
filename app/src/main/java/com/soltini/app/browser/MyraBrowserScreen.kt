@@ -245,8 +245,8 @@ fun MyraBrowserScreen(
                     .shadow(
                         elevation = 6.dp,
                         shape = RoundedCornerShape(24.dp),
-                        ambientColor = PrimaryPurple.copy(alpha = 0.16f),
-                        spotColor = PrimaryPurple.copy(alpha = 0.22f)
+                        ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f),
+                        spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.22f)
                     )
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
@@ -471,7 +471,7 @@ fun MyraBrowserScreen(
                                 .fillMaxWidth()
                                 .height(3.dp)
                                 .clip(CircleShape),
-                            color = PrimaryPurple,
+                            color = LocalMyraTokens.current.accent,
                             trackColor = SoftDivider
                         )
                     }
@@ -493,7 +493,7 @@ fun MyraBrowserScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(PrimaryGradientBrush),
+                                .background(LocalMyraTokens.current.accentGradient),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -626,8 +626,8 @@ fun MyraBrowserScreen(
                                     .shadow(
                                         elevation = 8.dp,
                                         shape = CircleShape,
-                                        ambientColor = PrimaryPurple.copy(alpha = 0.16f),
-                                        spotColor = PrimaryPurple.copy(alpha = 0.22f)
+                                        ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f),
+                                        spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.22f)
                                     )
                             ) {
                                 OutlinedTextField(
@@ -745,7 +745,7 @@ fun MyraBrowserScreen(
                                                         .shadow(
                                                             elevation = 5.dp,
                                                             shape = CircleShape,
-                                                            ambientColor = PrimaryPurple.copy(alpha = 0.2f)
+                                                            ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.2f)
                                                         )
                                                         .clip(CircleShape)
                                                         .background(Brush.linearGradient(sc.gradient)),
@@ -884,7 +884,7 @@ fun MyraBrowserScreen(
                     .shadow(
                         elevation = 6.dp,
                         shape = CircleShape,
-                        ambientColor = PrimaryPurple.copy(alpha = 0.14f)
+                        ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f)
                     )
             ) {
                 Row(
@@ -1074,8 +1074,8 @@ fun MyraBrowserScreen(
                             onValueChange = { themeManager.setWallpaperDim(it) },
                             valueRange = 0.05f..0.75f,
                             colors = SliderDefaults.colors(
-                                thumbColor = PrimaryPurple,
-                                activeTrackColor = PrimaryPurple,
+                                thumbColor = LocalMyraTokens.current.accent,
+                                activeTrackColor = LocalMyraTokens.current.accent,
                                 inactiveTrackColor = SoftDivider
                             )
                         )
@@ -1144,7 +1144,7 @@ fun MyraBrowserScreen(
                                     name = newName,
                                     url = fullUrl,
                                     iconLabel = initial,
-                                    gradient = listOf(PrimaryPurple, PrimaryPink)
+                                    gradient = listOf(LocalMyraTokens.current.accent, LocalMyraTokens.current.accentSecondary)
                                 )
                             )
                             showAddShortcutDialog = false

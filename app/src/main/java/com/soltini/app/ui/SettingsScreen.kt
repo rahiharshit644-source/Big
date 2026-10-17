@@ -48,6 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryAlert
@@ -153,6 +154,7 @@ import com.soltini.app.ui.theme.PrimaryGradientBrush
 import com.soltini.app.ui.theme.PurpleAccentStart
 import com.soltini.app.ui.theme.RedError
 import com.soltini.app.ui.theme.SoftBackgroundBrush
+import com.soltini.app.ui.theme.LocalMyraTokens
 import com.soltini.app.ui.theme.TextCharcoal
 import com.soltini.app.ui.theme.TextMidGray
 
@@ -172,7 +174,8 @@ enum class SettingsRoute {
     VOICE_ID,
     PUBLIC_APIS_HUB,
     ORB_STYLE,
-    AGENT_LOG
+    AGENT_LOG,
+    APPEARANCE
 }
 
 @Composable
@@ -273,7 +276,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         val selfScrolling = currentRoute == SettingsRoute.VOICE_ID ||
@@ -329,7 +332,7 @@ fun SettingsScreen(
                         Spacer(Modifier.width(4.dp))
                         Text(
                             if (currentRoute == SettingsRoute.MAIN) "Done" else "Back",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp
                         )
@@ -350,6 +353,7 @@ fun SettingsScreen(
                         SettingsRoute.PUBLIC_APIS_HUB -> "Public APIs Hub"
                         SettingsRoute.ORB_STYLE -> "Floating Orb"
                         SettingsRoute.AGENT_LOG -> "Agent Log"
+                        SettingsRoute.APPEARANCE -> "Appearance & Themes"
                         else -> ""
                     }
                     GlassStatusBadge(text = routeTitle, style = BadgeStyle.PURPLE)
@@ -367,6 +371,12 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        SettingsMenuCard(
+                            title = "Appearance & Themes",
+                            subtitle = "Classic MYRA or Blue Glass",
+                            icon = Icons.Default.Palette
+                        ) { currentRoute = SettingsRoute.APPEARANCE }
+
                         SettingsMenuCard(
                             title = "1,750+ Public APIs Hub",
                             subtitle = "51 categories, zero-auth filter & live API playground",
@@ -524,6 +534,11 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
+                }
+
+                SettingsRoute.APPEARANCE -> {
+                    AppearanceSettingsSection()
+                    Spacer(Modifier.height(90.dp))
                 }
 
                 SettingsRoute.ORB_STYLE -> {
@@ -825,7 +840,7 @@ private fun SettingsHeader() {
                     .scale(scale)
                     .shadow(8.dp, CircleShape, ambientColor = GlassShadowAmbient, spotColor = GlassShadowSpot)
                     .clip(CircleShape)
-                    .background(PrimaryGradientBrush),
+                    .background(LocalMyraTokens.current.accentGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -839,14 +854,14 @@ private fun SettingsHeader() {
             Text(
                 "Myra Control Center",
                 style = MaterialTheme.typography.headlineSmall,
-                color = TextCharcoal,
+                color = LocalMyraTokens.current.textPrimary,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "Configure AI persona, voice biometrics, memory tiers,\nsmart home relays, and autonomous capabilities.",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp
             )
@@ -863,12 +878,12 @@ private fun SectionLabel(text: String) {
                 .width(4.dp)
                 .height(18.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(PrimaryGradientBrush)
+                .background(LocalMyraTokens.current.accentGradient)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text,
-            color = TextCharcoal,
+            color = LocalMyraTokens.current.textPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp
         )
@@ -916,7 +931,7 @@ private fun PermissionCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         title,
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -929,7 +944,7 @@ private fun PermissionCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     description,
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
                 )
@@ -978,7 +993,7 @@ private fun RestrictedSettingsCard() {
                         "2. Tap the three-dot menu (⋮) at the top right\n" +
                         "3. Tap \"Allow restricted settings\"\n" +
                         "4. Come back and tap Grant on Accessibility Service above.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 18.sp
                 )
@@ -1013,7 +1028,7 @@ private fun XiaomiActionsCard(context: Context) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             "Your phone aggressively kills background apps. Use the buttons below to open each setting:",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 12.sp,
             lineHeight = 17.sp
         )
@@ -1087,8 +1102,8 @@ private fun MiuiActionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = TextCharcoal, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(hint, color = TextMidGray, fontSize = 11.sp, lineHeight = 15.sp)
+            Text(label, color = LocalMyraTokens.current.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp, lineHeight = 15.sp)
         }
         if (buttonLabel != null) {
             Spacer(modifier = Modifier.width(8.dp))
@@ -1149,7 +1164,7 @@ private fun SummaryItem(label: String, granted: Int, total: Int, color: Color) {
             fontWeight = FontWeight.Bold,
             fontSize = 22.sp
         )
-        Text(label, color = TextMidGray, fontSize = 12.sp)
+        Text(label, color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
     }
 }
 
@@ -1308,12 +1323,12 @@ fun AiConfigSection(
                 iconSize = 18.dp
             )
             Spacer(Modifier.width(10.dp))
-            Text("Developer / Creator Name", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("Developer / Creator Name", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
         Spacer(Modifier.height(4.dp))
         Text(
             "Kept strictly confidential. When asked \"Kisne banaya?\", \"Developer kaun hai?\" or \"Who made this app?\", the AI will reveal this name. Permanent — cannot be changed from this screen.",
-            color = TextMidGray, fontSize = 11.sp, lineHeight = 16.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp, lineHeight = 16.sp
         )
         Spacer(Modifier.height(8.dp))
         Surface(
@@ -1323,7 +1338,7 @@ fun AiConfigSection(
         ) {
             Text(
                 devName,
-                color = TextCharcoal,
+                color = LocalMyraTokens.current.textPrimary,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1333,10 +1348,10 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Username ──────────────────────────────────────────────────
-        Text("Username", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Username", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "What the AI calls you during conversation.",
-            color = TextMidGray, fontSize = 11.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
         GlassPillInput(
@@ -1353,10 +1368,10 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Assistant / App Name ─────────────────────────────────────────
-        Text("Assistant / App Name", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Assistant / App Name", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "The name of your personal AI companion.",
-            color = TextMidGray, fontSize = 11.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
         GlassPillInput(
@@ -1373,10 +1388,10 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Browser-Use Bridge Server ────────────────────────────────────
-        Text("Browser-Use Server URL", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Browser-Use Server URL", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "Optional. Address of your soltini_bridge_server.py running on a PC/VPS with Browser-Use + Playwright installed (e.g. http://192.168.1.23:8787). Leave blank to disable.",
-            color = TextMidGray, fontSize = 11.sp, lineHeight = 16.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp, lineHeight = 16.sp
         )
         Spacer(Modifier.height(8.dp))
         GlassPillInput(
@@ -1392,7 +1407,7 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── API Key ─────────────────────────────────────────────────────
-        Text("Gemini API Key", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Gemini API Key", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         GlassPillInput(
             value = apiKey,
@@ -1425,7 +1440,7 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── AI Persona ──────────────────────────────────────────────────
-        Text("AI Persona", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("AI Persona", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = persona,
@@ -1433,7 +1448,7 @@ fun AiConfigSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(125.dp),
-            placeholder = { Text("Describe Myra's personality…", color = TextMidGray, fontSize = 13.sp) },
+            placeholder = { Text("Describe Myra's personality…", color = LocalMyraTokens.current.textSecondary, fontSize = 13.sp) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = PurpleAccentStart,
                 unfocusedBorderColor = Color(0xFFE4DCF5),
@@ -1447,7 +1462,7 @@ fun AiConfigSection(
         )
         Text(
             "${persona.length} chars",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 11.sp,
             modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
         )
@@ -1455,7 +1470,7 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Voice Model ─────────────────────────────────────────────────
-        Text("Voice", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Voice", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier
@@ -1475,10 +1490,10 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Mic Volume Soft Boost ───────────────────────────────────────
-        Text("Microphone Volume Boost", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Microphone Volume Boost", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "Amplifies soft speech so Gemini hears you loud and clear every time.",
-            color = TextMidGray, fontSize = 11.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
         Row(
@@ -1503,10 +1518,10 @@ fun AiConfigSection(
         Spacer(Modifier.height(18.dp))
 
         // ── Auto-Sleep Idle Timeout ─────────────────────────────────────
-        Text("Auto-Sleep Idle Timeout", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Auto-Sleep Idle Timeout", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "Goes to standby after inactivity: Gemini disconnects and uses no data. Say \"Myra\" to wake her.",
-            color = TextMidGray, fontSize = 11.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
         Row(
@@ -1538,10 +1553,10 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Wake Word (\"Hey Myra\")", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Wake Word (\"Hey Myra\")", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "In standby an offline listener waits for \"Myra\" and wakes her. The mic stays on locally; nothing is sent until she wakes.",
-                    color = TextMidGray, fontSize = 11.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
                 )
             }
             GlassSwitch(
@@ -1559,10 +1574,10 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Silent Execution", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Silent Execution", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Myra does not narrate while carrying out tasks. Normal conversation stays audible.",
-                    color = TextMidGray, fontSize = 11.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
                 )
             }
             GlassSwitch(
@@ -1580,10 +1595,10 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Agent: Ask Before Risky Steps", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Agent: Ask Before Risky Steps", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "The phone agent pauses and asks you before payments, orders, deletions and password/PIN fields. Recommended ON.",
-                    color = TextMidGray, fontSize = 11.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
                 )
             }
             GlassSwitch(
@@ -1601,10 +1616,10 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("OTP Reader (opt-in)", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("OTP Reader (opt-in)", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Lets Myra read a fresh one-time code from your notifications (last 2 minutes) when you ask, or while filling a login. Needs notification access. Off by default.",
-                    color = TextMidGray, fontSize = 11.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
                 )
             }
             GlassSwitch(
@@ -1622,10 +1637,10 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Learn My Habits", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Learn My Habits", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Myra notices favourite songs, apps and contacts and daily routines from what you ask her to do, and saves them as memories you can see, edit or delete in Memory. Stays on this phone.",
-                    color = TextMidGray, fontSize = 11.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
                 )
             }
             GlassSwitch(
@@ -1647,8 +1662,8 @@ fun AiConfigSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Data Saver (Silence Suppression)", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text("Stops streaming mic data during silence.", color = TextMidGray, fontSize = 11.sp)
+                Text("Data Saver (Silence Suppression)", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Stops streaming mic data during silence.", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
             }
             GlassSwitch(
                 checked = isDataSaver,
@@ -1658,7 +1673,7 @@ fun AiConfigSection(
 
         if (isDataSaver) {
             Spacer(Modifier.height(12.dp))
-            Text("VAD Mic Sensitivity", color = TextCharcoal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("VAD Mic Sensitivity", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier
@@ -1685,10 +1700,10 @@ fun AiConfigSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Screen Recording Mode", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Screen Recording Mode", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Fixes echo loops when recording internal audio.",
-                    color = TextMidGray, fontSize = 12.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp
                 )
             }
             GlassSwitch(
@@ -1731,7 +1746,7 @@ fun AiConfigSection(
 
         Text(
             "Settings saved to device. A new Gemini session will start.",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 11.sp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -1757,7 +1772,7 @@ private fun GlassSelectablePill(
             )
             .clip(CircleShape)
             .then(
-                if (selected) Modifier.background(PrimaryGradientBrush)
+                if (selected) Modifier.background(LocalMyraTokens.current.accentGradient)
                 else Modifier.background(Color(0xFFF6F3FC))
             )
             .clickable(onClick = onClick)
@@ -1863,8 +1878,8 @@ fun MemorySection(
             )
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Memory Engine", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("Facts + conversation history, deduplicated automatically", color = TextMidGray, fontSize = 12.sp)
+                Text("Memory Engine", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Facts + conversation history, deduplicated automatically", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
             }
         }
 
@@ -1881,7 +1896,7 @@ fun MemorySection(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${unifiedMemories.size}", color = PurpleAccentStart, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Saved Facts", color = TextMidGray, fontSize = 11.sp)
+                    Text("Saved Facts", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
                 }
             }
             Box(
@@ -1894,20 +1909,20 @@ fun MemorySection(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${sessionLogEntries.size}", color = MintAccentDark, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Past Conversations", color = TextMidGray, fontSize = 11.sp)
+                    Text("Past Conversations", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
                 }
             }
         }
 
         if (sessionLogEntries.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
-            Text("Recently discussed:", color = TextMidGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("Recently discussed:", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 sessionLogEntries.take(5).forEach { entry ->
                     Text(
                         "• ${entry.topic}",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1939,8 +1954,8 @@ fun MemorySection(
                 )
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("Memory Manager", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("${unifiedMemories.size} items stored", color = TextMidGray, fontSize = 11.sp)
+                    Text("Memory Manager", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("${unifiedMemories.size} items stored", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
                 }
             }
 
@@ -2048,7 +2063,7 @@ fun MemorySection(
                         Text(
                             if (searchQuery.isNotBlank()) "No memories matching \"$searchQuery\""
                             else "No memories recorded yet in this category.",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center
                         )
@@ -2087,7 +2102,7 @@ fun MemorySection(
                                         Spacer(Modifier.height(6.dp))
                                         Text(
                                             item.text,
-                                            color = TextCharcoal,
+                                            color = LocalMyraTokens.current.textPrimary,
                                             fontSize = 13.sp,
                                             lineHeight = 18.sp
                                         )
@@ -2178,23 +2193,23 @@ fun MemorySection(
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) {
-                    Text("Cancel", color = TextMidGray)
+                    Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                 }
             },
-            title = { Text("Add Memory or Rule", color = TextCharcoal, fontWeight = FontWeight.Bold) },
+            title = { Text("Add Memory or Rule", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Record a personal fact, preference, user rule, or project detail for MYRA:", color = TextMidGray, fontSize = 12.sp)
+                    Text("Record a personal fact, preference, user rule, or project detail for MYRA:", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
                     OutlinedTextField(
                         value = addTextValue,
                         onValueChange = { addTextValue = it },
-                        placeholder = { Text("e.g. User prefers concise answers", color = TextMidGray, fontSize = 12.sp) },
+                        placeholder = { Text("e.g. User prefers concise answers", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         shape = RoundedCornerShape(16.dp)
                     )
 
-                    Text("Memory Category:", color = TextMidGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Memory Category:", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2235,13 +2250,13 @@ fun MemorySection(
             },
             dismissButton = {
                 TextButton(onClick = { editingItem = null }) {
-                    Text("Cancel", color = TextMidGray)
+                    Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                 }
             },
-            title = { Text("Edit Memory", color = TextCharcoal, fontWeight = FontWeight.Bold) },
+            title = { Text("Edit Memory", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Modify this stored memory or rule:", color = TextMidGray, fontSize = 12.sp)
+                    Text("Modify this stored memory or rule:", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editTextValue,
                         onValueChange = { editTextValue = it },
@@ -2250,7 +2265,7 @@ fun MemorySection(
                         shape = RoundedCornerShape(16.dp)
                     )
 
-                    Text("Memory Category:", color = TextMidGray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Memory Category:", color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2287,15 +2302,15 @@ fun MemorySection(
             )
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Encrypted Memory Backup", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("AES-256 Android Keystore Protected Backup", color = TextMidGray, fontSize = 11.sp)
+                Text("Encrypted Memory Backup", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("AES-256 Android Keystore Protected Backup", color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp)
             }
         }
 
         Spacer(Modifier.height(10.dp))
         Text(
             "Export persistent memories (facts, personal context, knowledge, and experience) as an encrypted backup to restore across devices or sync with Google Drive.",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 12.sp,
             lineHeight = 17.sp
         )
@@ -2409,12 +2424,12 @@ fun MemorySection(
                 },
                 containerColor = GlassCardWhiteSolid,
                 shape = RoundedCornerShape(24.dp),
-                title = { Text("Restore Memory Backup", color = TextCharcoal, fontWeight = FontWeight.Bold) },
+                title = { Text("Restore Memory Backup", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
                             "Agar ye backup kisi password se encrypt kiya gaya tha, toh password daaliye. Agar bina password (KeyStore) backup tha, toh khali chhod kar Restore dabayein.",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 13.sp
                         )
                         Spacer(Modifier.height(12.dp))
@@ -2447,7 +2462,7 @@ fun MemorySection(
                         showRestorePasswordDialog = false
                         restorePendingUri = null
                     }) {
-                        Text("Cancel", color = TextMidGray)
+                        Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                     }
                 }
             )
@@ -2483,10 +2498,10 @@ private fun BankingProtectionCard(context: Context) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Banking App Protection", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Banking App Protection", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(
                     "Fixes banking apps (GPay, PhonePe, Paytm, YONO, SBI, HDFC) closing or blocking launch",
-                    color = TextMidGray, fontSize = 12.sp, lineHeight = 16.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 12.sp, lineHeight = 16.sp
                 )
             }
         }
@@ -2500,10 +2515,10 @@ private fun BankingProtectionCard(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Auto-Hide Overlay & A11y", color = TextCharcoal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Auto-Hide Overlay & A11y", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 Text(
                     "Auto-hides floating orb & pauses screen reading whenever a banking app comes to foreground",
-                    color = TextMidGray, fontSize = 11.sp, lineHeight = 15.sp
+                    color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp, lineHeight = 15.sp
                 )
             }
             GlassSwitch(
@@ -2524,7 +2539,7 @@ private fun BankingProtectionCard(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Manual Pause (Banking Mode)", color = TextCharcoal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Manual Pause (Banking Mode)", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 Text(
                     if (isPaused) "Overlay is PAUSED right now" else "Overlay is ACTIVE",
                     color = if (isPaused) AmberWarning else MintAccentDark,
@@ -2574,7 +2589,7 @@ private fun BankingProtectionCard(context: Context) {
                         )
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("Voice-Lock Banking Mode", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Voice-Lock Banking Mode", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Text(
                                 if (isVoiceLockEnrolled) "Enrolled (${voiceManager.getEnrolledSampleCount()} samples)" else "Not enrolled (Tap below to enroll)",
                                 color = if (isVoiceLockEnrolled) MintAccentDark else AmberWarning,
@@ -2597,7 +2612,7 @@ private fun BankingProtectionCard(context: Context) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Protects sensitive actions (overlay resume/unpause and confirmed destructive file operations) with acoustic voice embedding verification.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp
                 )
@@ -2653,7 +2668,7 @@ private fun BusyModeCard(context: Context) {
                 Column {
                     Text(
                         "Autonomous Messaging (Busy Mode)",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -2683,7 +2698,7 @@ private fun BusyModeCard(context: Context) {
 
         Text(
             "Jab aap busy hon (\"Myra main busy hoon\"), Myra WhatsApp, Instagram, Telegram aur SMS ke naye messages ka polite aur contextual reply khud bhejti hai.",
-            color = TextMidGray,
+            color = LocalMyraTokens.current.textSecondary,
             fontSize = 12.sp,
             lineHeight = 17.sp
         )
@@ -2720,7 +2735,7 @@ private fun BusyModeCard(context: Context) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "Loop & Self-Reply Protection Active: Myra apne ya user ke messages ka reply nahi karegi. 3-minute cooldown active.",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontSize = 11.sp,
                     lineHeight = 15.sp
                 )
@@ -2766,7 +2781,7 @@ private fun BusyModeCard(context: Context) {
                                 ) {
                                     Text(
                                         "${log.appName}: ${log.sender}",
-                                        color = TextCharcoal,
+                                        color = LocalMyraTokens.current.textPrimary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
                                     )
@@ -2775,7 +2790,7 @@ private fun BusyModeCard(context: Context) {
                                 if (log.incomingText.isNotBlank()) {
                                     Text(
                                         "In: \"${log.incomingText}\"",
-                                        color = TextMidGray,
+                                        color = LocalMyraTokens.current.textSecondary,
                                         fontSize = 11.sp,
                                         maxLines = 1
                                     )
@@ -2825,7 +2840,7 @@ private fun NotificationsSettingsSection(context: Context) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "Notification Listener Access",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
@@ -2869,7 +2884,7 @@ private fun NotificationsSettingsSection(context: Context) {
                     "• \"Rahul ko reply karo: Main 10 minute mein aa raha hoon\"\n" +
                     "• \"WhatsApp pe reply kar do: Theek hai\"\n" +
                     "• \"Chrome ke notifications ignore karo\"",
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 19.sp
             )
@@ -2883,13 +2898,13 @@ private fun NotificationsSettingsSection(context: Context) {
         ) {
             Text(
                 "Selective App Ignore List",
-                color = TextCharcoal,
+                color = LocalMyraTokens.current.textPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
             Text(
                 "By default, all apps are allowed. Only apps you explicitly tell Myra or add below will be ignored.",
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 fontSize = 12.sp
             )
 
@@ -2924,13 +2939,13 @@ private fun NotificationsSettingsSection(context: Context) {
             if (ignoredApps.isEmpty()) {
                 Text(
                     "No apps ignored. Myra reads notifications from all messaging apps when asked.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp
                 )
             } else {
                 Text(
                     "Currently Ignored Apps (${ignoredApps.size}):",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -2986,13 +3001,13 @@ private fun NotificationsSettingsSection(context: Context) {
                 Column {
                     Text(
                         "Recent Captured Notifications",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Text(
                         "${recentNotifs.size} in memory",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 11.sp
                     )
                 }
@@ -3009,7 +3024,7 @@ private fun NotificationsSettingsSection(context: Context) {
                 Text(
                     if (isGranted) "No active notifications right now. Any notification received will appear here."
                     else "Grant Notification Access above to start capturing notifications.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
@@ -3037,7 +3052,7 @@ private fun NotificationsSettingsSection(context: Context) {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "• ${item.getTimeAgo()}",
-                                            color = TextMidGray,
+                                            color = LocalMyraTokens.current.textSecondary,
                                             fontSize = 10.sp
                                         )
                                     }
@@ -3048,14 +3063,14 @@ private fun NotificationsSettingsSection(context: Context) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     item.title,
-                                    color = TextCharcoal,
+                                    color = LocalMyraTokens.current.textPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp
                                 )
                                 if (item.text.isNotBlank()) {
                                     Text(
                                         item.text,
-                                        color = TextMidGray,
+                                        color = LocalMyraTokens.current.textSecondary,
                                         fontSize = 12.sp,
                                         maxLines = 2
                                     )
@@ -3106,14 +3121,14 @@ fun ScreenCompanionSection(
                 Text(
                     "Live Screen Companion",
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     "Myra sits next to you like a real companion, watching your screen and giving helpful tips, corrections, and thoughts as you work or type.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     textAlign = TextAlign.Center,
                     lineHeight = 18.sp
                 )
@@ -3134,14 +3149,14 @@ fun ScreenCompanionSection(
                 Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         "Proactive Human Eye",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "When ON, Myra notices when you are typing or stuck on a screen and speaks up with sweet, helpful advice naturally.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
                     )
@@ -3170,14 +3185,14 @@ fun ScreenCompanionSection(
                 Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         "Banking & Privacy Shield",
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "Instantly hides observation and clears screen memory whenever banking, UPI, or password fields are open.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
                     )
@@ -3243,13 +3258,13 @@ fun ScreenCompanionSection(
                 fontSize = 13.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("• \"Dekho screen pe kya chal raha hai\"", color = TextCharcoal, fontSize = 12.sp)
+            Text("• \"Dekho screen pe kya chal raha hai\"", color = LocalMyraTokens.current.textPrimary, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("• \"Yeh email check karke batao kaisa likha hai\"", color = TextCharcoal, fontSize = 12.sp)
+            Text("• \"Yeh email check karke batao kaisa likha hai\"", color = LocalMyraTokens.current.textPrimary, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("• \"Mera code dekh ke batao kya issue hai\"", color = TextCharcoal, fontSize = 12.sp)
+            Text("• \"Mera code dekh ke batao kya issue hai\"", color = LocalMyraTokens.current.textPrimary, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("• \"Screen companion mode on karo\"", color = TextCharcoal, fontSize = 12.sp)
+            Text("• \"Screen companion mode on karo\"", color = LocalMyraTokens.current.textPrimary, fontSize = 12.sp)
         }
     }
 }
@@ -3262,10 +3277,10 @@ private fun AppIdentityRow() {
     var show by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("App Identity & Security", color = TextCharcoal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("App Identity & Security", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Text(
             "Shows which certificate this app is signed with and whether it matches your official build. Saved API keys and website passwords are encrypted on this phone.",
-            color = TextMidGray, fontSize = 11.sp
+            color = LocalMyraTokens.current.textSecondary, fontSize = 11.sp
         )
         Spacer(Modifier.height(8.dp))
         androidx.compose.material3.OutlinedButton(onClick = { show = true }) { Text("View details") }

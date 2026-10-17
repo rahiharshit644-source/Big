@@ -1,6 +1,7 @@
 package com.soltini.app.ui.components
 
 import androidx.compose.ui.graphics.Color
+import com.soltini.app.ui.theme.MyraThemeMode
 
 /**
  * What Myra is doing right now, as shown by the main-screen orb, its halo and the status chip.
@@ -19,4 +20,15 @@ enum class MyraOrbState(val js: String, val chipLabel: String, val color: Color)
     SPEAKING("speaking", "Speaking", Color(0xFFE0489E)),
     MUTED("muted", "Muted", Color(0xFFE59524)),
     PAUSED("paused", "Paused", Color(0xFF7C8AAE))
+
+    /** Halo / chip colour for the active theme. Classic returns the original [color] unchanged. */
+    fun colorFor(mode: MyraThemeMode): Color =
+        if (mode != MyraThemeMode.BLUE_GLASS) color else when (this) {
+            OFF -> Color(0xFF8FA3BF)
+            CONNECTING -> Color(0xFFB68AFF)
+            LISTENING -> Color(0xFF087BFF)
+            SPEAKING -> Color(0xFF39D9FF)
+            MUTED -> Color(0xFFE59524)
+            PAUSED -> Color(0xFF7C8AAE)
+        }
 }

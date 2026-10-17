@@ -6,6 +6,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -35,6 +38,29 @@ private val SoftLightGlassColorScheme = lightColorScheme(
     onError = Color.White
 )
 
+private val BlueGlassColorScheme = lightColorScheme(
+    primary = BluePrimary,
+    onPrimary = Color.White,
+    primaryContainer = BluePaleCyanSurface,
+    onPrimaryContainer = BlueTextPrimary,
+    secondary = BlueElectricCyan,
+    onSecondary = BlueTextPrimary,
+    secondaryContainer = BluePaleCyanSurface,
+    onSecondaryContainer = BlueDeep,
+    tertiary = Color(0xFFB68AFF),
+    onTertiary = Color.White,
+    background = BlueIceBackground,
+    onBackground = BlueTextPrimary,
+    surface = Color.White,
+    onSurface = BlueTextPrimary,
+    surfaceVariant = BluePaleCyanSurface,
+    onSurfaceVariant = BlueTextSecondary,
+    outline = Color(0xFFBFD9F2),
+    outlineVariant = Color(0xFFD3E6F7),
+    error = RedError,
+    onError = Color.White
+)
+
 val GlassShapes = Shapes(
     extraSmall = RoundedCornerShape(12.dp),
     small = RoundedCornerShape(16.dp),
@@ -59,10 +85,13 @@ fun GeminiVoiceTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = SoftLightGlassColorScheme,
-        typography = Typography,
-        shapes = GlassShapes,
-        content = content
-    )
+    val mode by ThemeController.mode.collectAsState()
+    CompositionLocalProvider(LocalMyraTokens provides tokensFor(mode)) {
+        MaterialTheme(
+            colorScheme = if (mode == MyraThemeMode.BLUE_GLASS) BlueGlassColorScheme else SoftLightGlassColorScheme,
+            typography = Typography,
+            shapes = GlassShapes,
+            content = content
+        )
+    }
 }

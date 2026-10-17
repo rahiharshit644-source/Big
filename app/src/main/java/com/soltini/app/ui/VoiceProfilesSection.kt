@@ -74,13 +74,13 @@ fun VoiceProfilesSection(context: Context) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "Voice Profiles & Permission System",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
                 Text(
                     "Multi-user speaker verification, profile permissions & Keystore encryption",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -109,7 +109,7 @@ fun VoiceProfilesSection(context: Context) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Security Principle: Voice biometrics identifies the speaker to enforce Myra's internal application permissions. Myra never bypasses or attempts to unlock the Android system lock screen.",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp
                 )
@@ -126,7 +126,7 @@ fun VoiceProfilesSection(context: Context) {
         ) {
             Text(
                 "Enrolled Voice Profiles (${profiles.size})",
-                color = TextCharcoal,
+                color = LocalMyraTokens.current.textPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
@@ -171,7 +171,7 @@ fun VoiceProfilesSection(context: Context) {
         // Emergency & Security Controls
         Text(
             "Emergency & Safety Controls",
-            color = TextCharcoal,
+            color = LocalMyraTokens.current.textPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
@@ -192,7 +192,7 @@ fun VoiceProfilesSection(context: Context) {
                 )
                 Text(
                     "Instantly locks all actions and blocks all assistant voice commands",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -216,13 +216,13 @@ fun VoiceProfilesSection(context: Context) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(
                     "Voice Commands Processing",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp
                 )
                 Text(
                     "Toggle speech command processing without resetting enrolled models",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -291,7 +291,7 @@ fun VoiceProfilesSection(context: Context) {
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Minimal Security Audit Log (${auditLogs.size})",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
                         )
@@ -357,7 +357,7 @@ fun VoiceProfilesSection(context: Context) {
                         Spacer(Modifier.height(6.dp))
                         Text(
                             "🔒 Zero leakage: Voice recordings, embeddings, and message texts are NEVER recorded in logs.",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 10.sp,
                             lineHeight = 14.sp
                         )
@@ -379,7 +379,7 @@ fun VoiceProfilesSection(context: Context) {
             title = {
                 Text(
                     "Add Voice Profile",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -388,7 +388,7 @@ fun VoiceProfilesSection(context: Context) {
                 Column {
                     Text(
                         "New profiles default strictly to Family/Restricted access. Private owner data is never exposed.",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -425,7 +425,7 @@ fun VoiceProfilesSection(context: Context) {
             },
             dismissButton = {
                 TextButton(onClick = { showAddProfileDialog = false }) {
-                    Text("Cancel", color = TextMidGray)
+                    Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                 }
             }
         )
@@ -441,7 +441,7 @@ fun VoiceProfilesSection(context: Context) {
             text = {
                 Text(
                     "This will delete all encrypted voice embeddings stored in the Android Keystore. Users will need to re-enroll with 10 phonetic sentences.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 13.sp
                 )
             },
@@ -459,7 +459,7 @@ fun VoiceProfilesSection(context: Context) {
             },
             dismissButton = {
                 TextButton(onClick = { showWipeConfirmDialog = false }) {
-                    Text("Cancel", color = TextMidGray)
+                    Text("Cancel", color = LocalMyraTokens.current.textSecondary)
                 }
             }
         )
@@ -509,7 +509,7 @@ private fun VoiceProfileItemCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 profile.name,
-                                color = TextCharcoal,
+                                color = LocalMyraTokens.current.textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
@@ -521,7 +521,7 @@ private fun VoiceProfileItemCard(
                         }
                         Text(
                             "${profile.relationship} • ${if (profile.isEnrolled) "Enrolled (${profile.sampleCount}/10 samples)" else "Not Enrolled"}",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 11.sp
                         )
                     }
@@ -586,7 +586,7 @@ private fun PermissionBadge(label: String, status: String, bgColor: Color, textC
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Text(label, color = TextMidGray, fontSize = 9.sp)
+            Text(label, color = LocalMyraTokens.current.textSecondary, fontSize = 9.sp)
             Text(status, color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }

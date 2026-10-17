@@ -59,13 +59,13 @@ fun VoiceprintTestPanel(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "VoicePrint Live Test",
-                    color = TextCharcoal,
+                    color = LocalMyraTokens.current.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Speak a sentence to test speaker verification score",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp
                 )
             }
@@ -81,7 +81,7 @@ fun VoiceprintTestPanel(
             ) {
                 Text(
                     text = "Please enroll your voice profile first to enable live testing.",
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(14.dp)
                 )
@@ -135,7 +135,7 @@ fun VoiceprintTestPanel(
                                 .fillMaxHeight()
                                 .fillMaxWidth(liveLevel.coerceIn(0.08f, 1f))
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(PrimaryGradientBrush)
+                                .background(LocalMyraTokens.current.accentGradient)
                         )
                     }
                 }
@@ -160,7 +160,7 @@ fun VoiceprintTestPanel(
                     ) {
                         Text(
                             text = "Similarity Score",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -190,7 +190,7 @@ fun VoiceprintTestPanel(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Threshold: ${(res.effectiveThreshold * 100).toInt()}%",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
@@ -215,7 +215,7 @@ fun VoiceprintTestPanel(
                                     if (res.state == VoiceprintVerifier.VerificationStateEnum.OWNER)
                                         Modifier.background(MintAccentDark)
                                     else
-                                        Modifier.background(PrimaryGradientBrush)
+                                        Modifier.background(LocalMyraTokens.current.accentGradient)
                                 )
                         )
                     }

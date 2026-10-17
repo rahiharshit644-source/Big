@@ -153,7 +153,7 @@ fun PublicApisHubScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         LazyColumn(
@@ -180,7 +180,7 @@ fun PublicApisHubScreen(
                             color = GlassCardWhite,
                             modifier = Modifier
                                 .size(40.dp)
-                                .shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.14f))
+                                .shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -195,13 +195,13 @@ fun PublicApisHubScreen(
                         Column {
                             Text(
                                 text = "Public APIs Explorer",
-                                color = TextCharcoal,
+                                color = LocalMyraTokens.current.textPrimary,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "$totalCount APIs across ${categories.size} categories",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -238,13 +238,13 @@ fun PublicApisHubScreen(
                             Column {
                                 Text(
                                     text = "1-Tap Live API Tester",
-                                    color = TextCharcoal,
+                                    color = LocalMyraTokens.current.textPrimary,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "Test real zero-auth endpoints right now",
-                                    color = TextMidGray,
+                                    color = LocalMyraTokens.current.textSecondary,
                                     fontSize = 12.sp
                                 )
                             }
@@ -324,7 +324,7 @@ fun PublicApisHubScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Fetching live response for $activeTestLabel...",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -373,7 +373,7 @@ fun PublicApisHubScreen(
                                     ) {
                                         Text(
                                             text = "Clear",
-                                            color = TextMidGray,
+                                            color = LocalMyraTokens.current.textSecondary,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -444,7 +444,7 @@ fun PublicApisHubScreen(
                     ) {
                         Text(
                             text = "Browse Categories",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -452,7 +452,7 @@ fun PublicApisHubScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "Zero-Auth Only",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -507,7 +507,7 @@ fun PublicApisHubScreen(
                         } else {
                             "Featured Catalog Preview (${displayedApis.size})"
                         },
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -557,11 +557,11 @@ private fun CategoryFilterPill(
             .shadow(
                 elevation = if (selected) 5.dp else 3.dp,
                 shape = CircleShape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.16f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f)
             )
             .clip(CircleShape)
             .then(
-                if (selected) Modifier.background(PrimaryHorizontalBrush, CircleShape)
+                if (selected) Modifier.background(LocalMyraTokens.current.accentHorizontalGradient, CircleShape)
                 else Modifier.background(GlassCardWhite, CircleShape)
             )
     ) {
@@ -611,7 +611,7 @@ private fun PublicApiItemCard(
                 ) {
                     Text(
                         text = api.name,
-                        color = TextCharcoal,
+                        color = LocalMyraTokens.current.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -630,7 +630,7 @@ private fun PublicApiItemCard(
 
                 Text(
                     text = api.description,
-                    color = TextMidGray,
+                    color = LocalMyraTokens.current.textSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
@@ -662,7 +662,7 @@ private fun PublicApiItemCard(
                             ) {
                                 Text(
                                     text = "HTTPS",
-                                    color = TextMidGray,
+                                    color = LocalMyraTokens.current.textSecondary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -690,7 +690,7 @@ private fun PublicApiItemCard(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Docs",
-                                    color = TextCharcoal,
+                                    color = LocalMyraTokens.current.textPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )

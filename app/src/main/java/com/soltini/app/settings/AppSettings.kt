@@ -278,7 +278,15 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_FLOATING_ORB_STYLE, ORB_STYLE_CLASSIC) ?: ORB_STYLE_CLASSIC
         set(value) = prefs.edit().putString(KEY_FLOATING_ORB_STYLE, value).apply()
 
+    // ── App theme (Classic MYRA / Blue Glass) ─────────────────────────────────
+
+    /** Persisted theme id ("classic" | "blue_glass"). Default "classic" so existing users are never switched. */
+    var appThemeMode: String
+        get() = prefs.getString(KEY_APP_THEME_MODE, "classic") ?: "classic"
+        set(value) = prefs.edit().putString(KEY_APP_THEME_MODE, value).apply()
+
     companion object {
+        private const val KEY_APP_THEME_MODE = "app_theme_mode"
         const val ORB_STYLE_CLASSIC = "classic"
         const val ORB_STYLE_PARTICLE = "particle"
         private const val KEY_FLOATING_ORB_STYLE = "floating_orb_style"

@@ -45,7 +45,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Pause
@@ -102,6 +107,9 @@ fun VoiceScreen(
     onOpenSettings: () -> Unit = {},
     onOpenHomeAutomation: () -> Unit = {},
     onOpenApisHub: () -> Unit = {},
+    onOpenBrowser: () -> Unit = {},
+    onOpenWeather: () -> Unit = {},
+    onOpenMemory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -150,7 +158,7 @@ fun VoiceScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         // Soft pastel ambient light aura
@@ -194,6 +202,20 @@ fun VoiceScreen(
                         viewModel.toggleMute()
                     }
                 )
+            }
+
+            // Blue Glass home dashboard: shortcut cards to existing destinations (Classic keeps its own nav)
+            if (LocalMyraTokens.current.mode == MyraThemeMode.BLUE_GLASS) {
+                item {
+                    HomeShortcutCards(
+                        onOpenBrowser = onOpenBrowser,
+                        onOpenHomeAutomation = onOpenHomeAutomation,
+                        onOpenApisHub = onOpenApisHub,
+                        onOpenLogs = onOpenLogs,
+                        onOpenWeather = onOpenWeather,
+                        onOpenMemory = onOpenMemory
+                    )
+                }
             }
 
             // Banking Pause Mode Card
@@ -442,11 +464,11 @@ private fun TopBar(
                     .shadow(
                         elevation = 6.dp,
                         shape = CircleShape,
-                        ambientColor = PrimaryPurple.copy(alpha = 0.25f),
-                        spotColor = PrimaryPink.copy(alpha = 0.30f)
+                        ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.25f),
+                        spotColor = LocalMyraTokens.current.accentSecondary.copy(alpha = 0.30f)
                     )
                     .clip(CircleShape)
-                    .background(PrimaryGradientBrush),
+                    .background(LocalMyraTokens.current.accentGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -624,8 +646,8 @@ private fun HeroOrbGlassCard(
                 GlassStatusBadge(
                     text = orbState.chipLabel,
                     isActive = true,
-                    activeBg = orbState.color.copy(alpha = 0.14f),
-                    activeContent = orbState.color
+                    activeBg = orbState.colorFor(LocalMyraTokens.current.mode).copy(alpha = 0.14f),
+                    activeContent = orbState.colorFor(LocalMyraTokens.current.mode)
                 )
                 Text(
                     text = "Floating Orb Ready",
@@ -675,7 +697,7 @@ private fun HeroOrbGlassCard(
                 val micBrush = if (isMuted) {
                     Brush.linearGradient(listOf(Color(0xFFFDE8E8), Color(0xFFFCD2D2)))
                 } else {
-                    PrimaryGradientBrush
+                    LocalMyraTokens.current.accentGradient
                 }
                 val micInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                 val isMicPressed by micInteraction.collectIsPressedAsState()
@@ -694,8 +716,8 @@ private fun HeroOrbGlassCard(
                         .shadow(
                             elevation = 8.dp,
                             shape = CircleShape,
-                            ambientColor = PrimaryPurple.copy(alpha = 0.30f),
-                            spotColor = PrimaryPink.copy(alpha = 0.35f)
+                            ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.30f),
+                            spotColor = LocalMyraTokens.current.accentSecondary.copy(alpha = 0.35f)
                         )
                         .clip(CircleShape)
                         .background(micBrush)
@@ -1249,4 +1271,54 @@ private fun checkAccessibilityHome(context: Context): Boolean {
         android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
     ) ?: return false
     return enabled.contains(context.packageName, ignoreCase = true)
+}
+
+
+// ── Blue Glass home shortcuts (real destinations only) ─────────────────────────
+@Composable
+private fun HomeShortcutCards(
+    onOpenBrowser: () -> Unit,
+    onOpenHomeAutomation: () -> Unit,
+    onOpenApisHub: () -> Unit,
+    onOpenLogs: () -> Unit,
+    onOpenWeather: () -> Unit,
+    onOpenMemory: () -> Unit
+) {
+    val t = LocalMyraTokens.current
+    val items = listOf(
+        Triple("Browser", "Myra Browser", Icons.Default.Language) to onOpenBrowser,
+        Triple("Smart Home", "ESP32 devices", Icons.Default.ElectricBolt) to onOpenHomeAutomation,
+        Triple("APIs Hub", "Public APIs", Icons.Default.Public) to onOpenApisHub,
+        Triple("Weather", "Live forecast", Icons.Default.Cloud) to onOpenWeather,
+        Triple("Memory", "Recall & organize", Icons.Default.Psychology) to onOpenMemory,
+        Triple("Logs", "Activity & errors", Icons.AutoMirrored.Filled.Article) to onOpenLogs
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.chunked(2).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                rowItems.forEach { (info, action) ->
+                    GlassCard(
+                        modifier = Modifier.weight(1f),
+                        onClick = action,
+                        contentPadding = 14.dp
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(t.accentGradient),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(info.third, contentDescription = null, tint = Color.White, modifier = Modifier.size(19.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(info.first, color = t.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text(info.second, color = t.textSecondary, fontSize = 11.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
 }

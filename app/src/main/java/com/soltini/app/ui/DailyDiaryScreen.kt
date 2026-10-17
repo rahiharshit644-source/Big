@@ -86,6 +86,7 @@ import com.soltini.app.ui.theme.PrimaryGradientBrush
 import com.soltini.app.ui.theme.PurpleAccentStart
 import com.soltini.app.ui.theme.RedError
 import com.soltini.app.ui.theme.SoftBackgroundBrush
+import com.soltini.app.ui.theme.LocalMyraTokens
 import com.soltini.app.ui.theme.TextCharcoal
 import com.soltini.app.ui.theme.TextMidGray
 import kotlinx.coroutines.Dispatchers
@@ -142,7 +143,7 @@ fun DailyDiaryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Scaffold(

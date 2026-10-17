@@ -82,7 +82,7 @@ fun EnrollmentScreen(
                     color = GlassCardWhite,
                     modifier = Modifier
                         .size(40.dp)
-                        .shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.14f))
+                        .shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.14f))
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -99,12 +99,12 @@ fun EnrollmentScreen(
                         text = "VoicePrint Enrollment",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextCharcoal
+                        color = LocalMyraTokens.current.textPrimary
                     )
                     Text(
                         text = "Personalize speaker verification",
                         fontSize = 12.sp,
-                        color = TextMidGray
+                        color = LocalMyraTokens.current.textSecondary
                     )
                 }
             }
@@ -131,7 +131,7 @@ fun EnrollmentScreen(
                     }
                     Text(
                         text = "Hold phone ~1 foot away",
-                        color = TextMidGray,
+                        color = LocalMyraTokens.current.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -144,7 +144,7 @@ fun EnrollmentScreen(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(CircleShape),
-                    color = PrimaryPurple,
+                    color = LocalMyraTokens.current.accent,
                     trackColor = SoftDivider,
                 )
 
@@ -172,7 +172,7 @@ fun EnrollmentScreen(
 
                         Text(
                             text = "Read aloud clearly:",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -181,7 +181,7 @@ fun EnrollmentScreen(
 
                         Text(
                             text = "\"$currentPhrase\"",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontSize = 19.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
@@ -239,7 +239,7 @@ fun EnrollmentScreen(
                                     .fillMaxHeight()
                                     .fillMaxWidth(if (isRecording) liveLevel.coerceIn(0.05f, 1f) else 0f)
                                     .clip(CircleShape)
-                                    .background(PrimaryHorizontalBrush)
+                                    .background(LocalMyraTokens.current.accentHorizontalGradient)
                             )
                         }
                     }
@@ -262,7 +262,7 @@ fun EnrollmentScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = "Validating speech quality...",
-                                color = TextMidGray,
+                                color = LocalMyraTokens.current.textSecondary,
                                 fontSize = 13.sp
                             )
                         }
@@ -328,7 +328,7 @@ fun EnrollmentScreen(
                 GradientPillButton(
                     text = if (isRecording) "Done Speaking (Process)" else "Tap to Start Recording",
                     icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                    brush = if (isRecording) Brush.horizontalGradient(listOf(RedError, Color(0xFFF43F5E))) else PrimaryHorizontalBrush,
+                    brush = if (isRecording) Brush.horizontalGradient(listOf(RedError, Color(0xFFF43F5E))) else LocalMyraTokens.current.accentHorizontalGradient,
                     onClick = {
                         if (isRecording) {
                             viewModel.stopRecordingAndProcessPhrase()
@@ -349,7 +349,7 @@ fun EnrollmentScreen(
                     },
                     shape = CircleShape,
                     color = GlassCardWhite,
-                    modifier = Modifier.shadow(4.dp, CircleShape, ambientColor = PrimaryPurple.copy(alpha = 0.12f))
+                    modifier = Modifier.shadow(4.dp, CircleShape, ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.12f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
@@ -362,7 +362,7 @@ fun EnrollmentScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Restart Enrollment", color = TextCharcoal, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text("Restart Enrollment", color = LocalMyraTokens.current.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             } else {
@@ -391,7 +391,7 @@ fun EnrollmentScreen(
 
                         Text(
                             text = "VoicePrint Enrolled!",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -400,7 +400,7 @@ fun EnrollmentScreen(
 
                         Text(
                             text = "Myra has created and encrypted your acoustic voiceprint.",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center
                         )
@@ -417,7 +417,7 @@ fun EnrollmentScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Calibrated Threshold", color = TextMidGray, fontSize = 13.sp)
+                                    Text("Calibrated Threshold", color = LocalMyraTokens.current.textSecondary, fontSize = 13.sp)
                                     Text(
                                         "${(completed.calibratedThreshold * 100).toInt()}%",
                                         color = SecondaryMintDark,
@@ -430,15 +430,15 @@ fun EnrollmentScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Phrases Recorded", color = TextMidGray, fontSize = 13.sp)
-                                    Text("5 of 5", color = TextCharcoal, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("Phrases Recorded", color = LocalMyraTokens.current.textSecondary, fontSize = 13.sp)
+                                    Text("5 of 5", color = LocalMyraTokens.current.textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Storage Security", color = TextMidGray, fontSize = 13.sp)
+                                    Text("Storage Security", color = LocalMyraTokens.current.textSecondary, fontSize = 13.sp)
                                     Text("Hardware AES-GCM", color = BadgePurpleTint, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                 }
                             }

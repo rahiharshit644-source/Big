@@ -97,7 +97,7 @@ fun MyraStatusOrb(
 /** Soft glow + expanding rings in the state colour. Cheap native drawing, always visible. */
 @Composable
 private fun StateHalo(state: MyraOrbState, level: Float, modifier: Modifier = Modifier) {
-    val color by animateColorAsState(state.color, tween(350), label = "haloColor")
+    val color by animateColorAsState(state.colorFor(com.soltini.app.ui.theme.LocalMyraTokens.current.mode), tween(350), label = "haloColor")
     val periodMs = when (state) {
         MyraOrbState.SPEAKING -> 900
         MyraOrbState.LISTENING -> 2400
@@ -153,7 +153,7 @@ private fun StateHalo(state: MyraOrbState, level: Float, modifier: Modifier = Mo
 /** Used only when WebGL is unavailable: rotating particle sphere in the state colour. */
 @Composable
 private fun NativeFallbackOrb(state: MyraOrbState, level: Float, modifier: Modifier = Modifier) {
-    val color by animateColorAsState(state.color, tween(350), label = "fallbackColor")
+    val color by animateColorAsState(state.colorFor(com.soltini.app.ui.theme.LocalMyraTokens.current.mode), tween(350), label = "fallbackColor")
     val speedMs = when (state) {
         MyraOrbState.SPEAKING -> 5000
         MyraOrbState.OFF, MyraOrbState.PAUSED -> 40000

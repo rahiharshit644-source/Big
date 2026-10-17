@@ -58,14 +58,15 @@ enum class BadgeStyle {
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 24.dp,
+    cornerRadius: Dp = LocalMyraTokens.current.cardCornerRadius,
     elevation: Dp = 6.dp,
-    containerColor: Color = GlassCardWhite,
+    containerColor: Color = LocalMyraTokens.current.cardColor,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(18.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(cornerRadius)
+    val tokens = LocalMyraTokens.current
     val haptics = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -81,8 +82,8 @@ fun GlassCard(
             .shadow(
                 elevation = elevation,
                 shape = shape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.14f),
-                spotColor = PrimaryPurple.copy(alpha = 0.18f)
+                ambientColor = tokens.shadowColor.copy(alpha = 0.14f),
+                spotColor = tokens.shadowColor.copy(alpha = 0.18f)
             )
             .clip(shape)
             .then(
@@ -99,6 +100,7 @@ fun GlassCard(
             ),
         shape = shape,
         color = containerColor,
+        border = tokens.cardBorder,
         tonalElevation = 0.dp
     ) {
         Column(
@@ -114,9 +116,9 @@ fun GlassCard(
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 24.dp,
+    cornerRadius: Dp = LocalMyraTokens.current.cardCornerRadius,
     elevation: Dp = 6.dp,
-    containerColor: Color = GlassCardWhite,
+    containerColor: Color = LocalMyraTokens.current.cardColor,
     onClick: (() -> Unit)? = null,
     contentPadding: Dp,
     content: @Composable ColumnScope.() -> Unit
@@ -172,7 +174,7 @@ fun GradientPillButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     enabled: Boolean = true,
-    brush: Brush = PrimaryHorizontalBrush,
+    brush: Brush = LocalMyraTokens.current.accentHorizontalGradient,
     contentColor: Color = Color.White,
     height: Dp = 48.dp
 ) {
@@ -198,8 +200,8 @@ fun GradientPillButton(
             .shadow(
                 elevation = if (enabled) 6.dp else 0.dp,
                 shape = shape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.25f),
-                spotColor = PrimaryPink.copy(alpha = 0.30f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.25f),
+                spotColor = LocalMyraTokens.current.accentSecondary.copy(alpha = 0.30f)
             )
             .clip(shape)
             .background(effectiveBrush)
@@ -247,7 +249,7 @@ fun GlassGradientButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     enabled: Boolean = true,
-    brush: Brush = PrimaryHorizontalBrush,
+    brush: Brush = LocalMyraTokens.current.accentHorizontalGradient,
     contentColor: Color = Color.White,
     height: Dp = 48.dp
 ) {
@@ -292,8 +294,8 @@ fun GlassSecondaryButton(
             .shadow(
                 elevation = if (enabled) 4.dp else 0.dp,
                 shape = shape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.12f),
-                spotColor = PrimaryPurple.copy(alpha = 0.16f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.12f),
+                spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f)
             )
     ) {
         Row(
@@ -334,7 +336,7 @@ fun GradientCircleButton(
     modifier: Modifier = Modifier,
     size: Dp = 58.dp,
     iconSize: Dp = 26.dp,
-    brush: Brush = PrimaryGradientBrush,
+    brush: Brush = LocalMyraTokens.current.accentGradient,
     iconTint: Color = Color.White,
     elevation: Dp = 8.dp
 ) {
@@ -354,8 +356,8 @@ fun GradientCircleButton(
             .shadow(
                 elevation = elevation,
                 shape = CircleShape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.30f),
-                spotColor = PrimaryPink.copy(alpha = 0.35f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.30f),
+                spotColor = LocalMyraTokens.current.accentSecondary.copy(alpha = 0.35f)
             )
             .clip(CircleShape)
             .background(brush)
@@ -514,8 +516,8 @@ fun GlassQuickActionChip(
         modifier = modifier.shadow(
             elevation = 4.dp,
             shape = shape,
-            ambientColor = PrimaryPurple.copy(alpha = 0.12f),
-            spotColor = PrimaryPurple.copy(alpha = 0.16f)
+            ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.12f),
+            spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f)
         )
     ) {
         Row(
@@ -526,7 +528,7 @@ fun GlassQuickActionChip(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(if (isSelected) PrimaryPurple else badgeBg),
+                    .background(if (isSelected) LocalMyraTokens.current.accent else badgeBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -572,8 +574,8 @@ fun GlassPillSearchBar(
             .shadow(
                 elevation = 5.dp,
                 shape = shape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.12f),
-                spotColor = PrimaryPurple.copy(alpha = 0.16f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.12f),
+                spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f)
             )
     ) {
         Row(
@@ -647,8 +649,8 @@ fun GlassPillInput(
             .shadow(
                 elevation = 5.dp,
                 shape = shape,
-                ambientColor = PrimaryPurple.copy(alpha = 0.12f),
-                spotColor = PrimaryPurple.copy(alpha = 0.16f)
+                ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.12f),
+                spotColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.16f)
             )
     ) {
         Row(
@@ -741,7 +743,7 @@ fun glassTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = TextCharcoal,
     focusedContainerColor = GlassCardSolid,
     unfocusedContainerColor = GlassSurfaceSubtle,
-    focusedBorderColor = PrimaryPurple,
+    focusedBorderColor = LocalMyraTokens.current.accent,
     unfocusedBorderColor = SoftDivider,
     cursorColor = PrimaryDeepPurple,
     focusedLabelColor = BadgePurpleTint,

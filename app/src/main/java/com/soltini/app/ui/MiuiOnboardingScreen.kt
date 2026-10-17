@@ -129,7 +129,7 @@ fun MiuiOnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SoftBackgroundBrush)
+            .background(LocalMyraTokens.current.backgroundBrush)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Column(

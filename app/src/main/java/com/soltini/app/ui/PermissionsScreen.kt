@@ -103,11 +103,11 @@ fun PermissionsScreen(
                     .shadow(
                         elevation = 16.dp,
                         shape = CircleShape,
-                        ambientColor = PrimaryPurple.copy(alpha = 0.35f),
-                        spotColor = PrimaryPink.copy(alpha = 0.40f)
+                        ambientColor = LocalMyraTokens.current.shadowColor.copy(alpha = 0.35f),
+                        spotColor = LocalMyraTokens.current.accentSecondary.copy(alpha = 0.40f)
                     )
                     .clip(CircleShape)
-                    .background(PrimaryGradientBrush),
+                    .background(LocalMyraTokens.current.accentGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -123,7 +123,7 @@ fun PermissionsScreen(
             Text(
                 text = "One Permission to Start",
                 style = MaterialTheme.typography.headlineMedium,
-                color = TextCharcoal,
+                color = LocalMyraTokens.current.textPrimary,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -133,7 +133,7 @@ fun PermissionsScreen(
             Text(
                 text = "Myra only needs your microphone to begin. You can unlock AI Agent capabilities like device lock, app launching, and the Digital Assistant role from Settings.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 22.sp
             )
@@ -160,13 +160,13 @@ fun PermissionsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Microphone",
-                            color = TextCharcoal,
+                            color = LocalMyraTokens.current.textPrimary,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 15.sp
                         )
                         Text(
                             text = "For live voice conversation",
-                            color = TextMidGray,
+                            color = LocalMyraTokens.current.textSecondary,
                             fontSize = 12.sp
                         )
                     }
@@ -198,7 +198,7 @@ fun PermissionsScreen(
             Text(
                 text = "You can grant additional agent permissions anytime from Settings.",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextMidGray,
+                color = LocalMyraTokens.current.textSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp
             )
